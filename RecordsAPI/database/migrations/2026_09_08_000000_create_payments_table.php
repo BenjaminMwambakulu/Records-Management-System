@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('status')->default('pending');
             $table->string('payment_method')->nullable();
             $table->string('payment_carrier')->default('paychangu');
-            $table->string('tx_ref')->unique();
+            $table->string('tx_ref')->unique()->nullable();
             $table->string('provider_reference')->nullable();
             $table->json('provider_response')->nullable();
             $table->json('metadata')->nullable();
