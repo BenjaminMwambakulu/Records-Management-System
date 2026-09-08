@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const root = __dirname;
+const seed = process.argv.includes("--seed");
 const failed = [];
 
 function check(name) {

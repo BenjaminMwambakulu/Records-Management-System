@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -104,18 +105,36 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
+        $now = now()->toDateTimeString();
+        $rows = [];
+
         foreach (self::MODULE_PERMISSIONS as $modulePermissions) {
             foreach ($modulePermissions as $permission) {
-                Permission::findOrCreate($permission, self::GUARD);
+                $rows[] = [
+                    'name' => $permission,
+                    'guard_name' => self::GUARD,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
         }
 
-        foreach (self::ROLE_PERMISSIONS as $role => $permissions) {
-            Role::findOrCreate($role, self::GUARD)
-                ->syncPermissions($permissions);
+        DB::table('permissions')->insertOrIgnore($rows);
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
+        $allPermissions = DB::table('permissions')
+            ->where('guard_name', self::GUARD)
+            ->pluck('name')
+            ->toArray();
+
+        foreach (self::ROLE_PERMISSIONS as $roleName => $permissionNames) {
+            $role = Role::findOrCreate($roleName, self::GUARD);
+            $role->syncPermissions(array_intersect($allPermissions, $permissionNames));
         }
 
-        Role::findOrCreate('superadmin', self::GUARD)
-            ->syncPermissions(Permission::all());
+        $superadmin = Role::findOrCreate('superadmin', self::GUARD);
+        $superadmin->syncPermissions($allPermissions);
+
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
 }
