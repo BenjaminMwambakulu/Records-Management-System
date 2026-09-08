@@ -65,9 +65,12 @@ const techStack = [
 ];
 
 export default function LandingPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const showDashboard = canAccessDashboard(user);
-  console.log("[LandingPage] isAuthenticated:", isAuthenticated, "user:", user, "showDashboard:", showDashboard);
+
+  const handleLogout = () => {
+    logout(import.meta.env.VITE_LOGTO_POST_LOGOUT_REDIRECT_URI);
+  };
 
   return (
     <div className="min-h-screen bg-white text-csit-text">
@@ -95,9 +98,12 @@ export default function LandingPage() {
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
               <>
-                <a href="/login" className="text-xs font-medium text-csit-text-muted hover:text-csit-text transition-colors hidden sm:block">
+                <button
+                  onClick={handleLogout}
+                  className="text-xs font-medium text-csit-text-muted hover:text-csit-text transition-colors hidden sm:block"
+                >
                   Sign out
-                </a>
+                </button>
                 {showDashboard ? (
                   <a href="/app">
                     <Button size="sm" className="h-8 px-4 text-xs font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full">

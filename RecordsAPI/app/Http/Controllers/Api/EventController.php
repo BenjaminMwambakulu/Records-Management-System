@@ -124,6 +124,10 @@ class EventController extends Controller
             return $this->error('Already registered for this event', JsonResponse::HTTP_CONFLICT);
         }
 
+        if ($event->entry_fee > 0) {
+            return $this->error('This event requires payment. Please pay the entry fee to register.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $this->eventService->register($event);
 
         return $this->success(null, 'Registered successfully');

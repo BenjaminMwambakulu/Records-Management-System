@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePaymentRequest;
+use App\Http\Requests\StoreMobileMoneyRequest;
 use App\Http\Resources\PaymentResource;
 use App\Http\Responses\APIResponse;
 use App\Services\PaymentService;
@@ -23,6 +24,12 @@ class PaymentController extends Controller
     {
         $user = auth('logto')->user();
 
+        \Log::info('Payment store request', [
+            'user_id' => $user->id,
+            'validated' => $request->validated(),
+            'all' => $request->all(),
+        ]);
+
         try {
             $result = $this->paymentService->initiate(
                 $user->id,
@@ -40,6 +47,10 @@ class PaymentController extends Controller
                 JsonResponse::HTTP_CREATED,
             );
         } catch (\RuntimeException $e) {
+            \Log::error('Payment initiation failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
             return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
@@ -98,5 +109,58 @@ class PaymentController extends Controller
             PaymentResource::collection($payments),
             'Your payments retrieved successfully'
         );
+    }
+
+    public function storeMobileMoney(StoreMobileMoneyRequest $request): JsonResponse
+    {
+        $user = auth('logto')->user();
+
+        try {
+            $result = $this->paymentService->initiateMobileMoney(
+                $user->id,
+                $request->validated('payable_type'),
+                $request->validated('payable_id'),
+                $request->validated('amount'),
+                $request->validated('phone_number'),
+                $request->validated('operator_ref_id'),
+            );
+
+            return $this->success(
+                [
+                    'payment' => new PaymentResource($result['payment']),
+                    'charge_id' => $result['charge_id'],
+                ],
+                'Mobile money payment initiated successfully',
+                JsonResponse::HTTP_CREATED,
+            );
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+    }
+
+    public function verify(int $id): JsonResponse
+    {
+        $user = auth('logto')->user();
+
+        $payment = $this->paymentService->find($id);
+
+        if (! $payment) {
+            return $this->error('Payment not found', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        if ($payment->user_id !== $user->id) {
+            return $this->error('Unauthorized', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        try {
+            $payment = $this->paymentService->verifyMobileMoney($id);
+
+            return $this->success(
+                new PaymentResource($payment),
+                'Payment verified successfully'
+            );
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
     }
 }

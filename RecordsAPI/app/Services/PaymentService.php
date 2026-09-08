@@ -84,6 +84,7 @@ class PaymentService
 
             if ($payment->isCompleted()) {
                 $this->createFinancialRecord($payment);
+                $this->registerEventAttendance($payment);
                 \App\Jobs\PaymentCompletedJob::dispatch($payment);
             }
         } catch (\Exception $e) {
@@ -165,5 +166,123 @@ class PaymentService
             'transaction_date' => $payment->paid_at?->toDateString() ?? now()->toDateString(),
             'recorded_by' => $payment->user_id,
         ]);
+    }
+
+    /**
+     * Auto-register user for event after successful payment
+     */
+    private function registerEventAttendance(Payment $payment): void
+    {
+        $payable = $payment->payable;
+
+        if (! $payable instanceof Event) {
+            return;
+        }
+
+        $existingRegistration = $payable->attendances()
+            ->where('user_id', $payment->user_id)
+            ->exists();
+
+        if (! $existingRegistration) {
+            $payable->attendances()->create([
+                'user_id' => $payment->user_id,
+            ]);
+        }
+    }
+
+    /**
+     * Initiate a mobile money payment for a payable item
+     */
+    public function initiateMobileMoney(int $userId, string $payableType, int $payableId, float $amount, string $phoneNumber, string $operatorRefId): array
+    {
+        $payable = $this->getPayable($payableType, $payableId);
+
+        if (! $payable) {
+            throw new \RuntimeException('Payable item not found');
+        }
+
+        $user = \App\Models\User::findOrFail($userId);
+        $chargeId = (string) time().'-'.$userId;
+
+        // Normalize phone number to 9 digits (strip country code and leading zero)
+        $normalizedPhone = preg_replace('/^265/', '', ltrim($phoneNumber, '0'));
+        $normalizedPhone = ltrim($normalizedPhone, '0');
+
+        $payment = Payment::create([
+            'payable_type' => $payableType,
+            'payable_id' => $payableId,
+            'user_id' => $userId,
+            'amount' => $amount,
+            'currency' => 'MWK',
+            'status' => PaymentStatus::PENDING,
+            'payment_carrier' => 'paychangu_mobile_money',
+            'metadata' => [
+                'payable_title' => $this->getPayableTitle($payable),
+                'phone_number' => $phoneNumber,
+                'operator_ref_id' => $operatorRefId,
+                'charge_id' => $chargeId,
+            ],
+        ]);
+
+        $result = $this->paychangu->initiateMobileMoney([
+            'mobile' => $normalizedPhone,
+            'mobile_money_operator_ref_id' => $operatorRefId,
+            'amount' => $amount,
+            'charge_id' => $chargeId,
+            'email' => $user->email,
+            'first_name' => $user->name ?? $user->email,
+        ]);
+
+        $payment->update([
+            'tx_ref' => $result['ref_id'],
+            'provider_reference' => $result['charge_id'],
+            'status' => PaymentStatus::PROCESSING,
+        ]);
+
+        return [
+            'payment' => $payment,
+            'charge_id' => $result['charge_id'],
+        ];
+    }
+
+    /**
+     * Verify mobile money payment status
+     */
+    public function verifyMobileMoney(int $paymentId): Payment
+    {
+        $payment = Payment::findOrFail($paymentId);
+
+        if (! $payment->metadata['charge_id'] ?? null) {
+            throw new \RuntimeException('Invalid mobile money payment');
+        }
+
+        try {
+            $verification = $this->paychangu->verifyMobileMoney($payment->metadata['charge_id']);
+
+            $status = match ($verification['status']) {
+                'success', 'successful' => PaymentStatus::COMPLETED,
+                default => PaymentStatus::FAILED,
+            };
+
+            $payment->update([
+                'status' => $status,
+                'provider_response' => $verification['data'],
+                'payment_method' => $verification['data']['authorization']['channel'] ?? null,
+                'paid_at' => $status === PaymentStatus::COMPLETED ? now() : null,
+            ]);
+
+            if ($payment->isCompleted()) {
+                $this->createFinancialRecord($payment);
+                $this->registerEventAttendance($payment);
+                \App\Jobs\PaymentCompletedJob::dispatch($payment);
+            }
+        } catch (\Exception $e) {
+            $payment->update([
+                'status' => PaymentStatus::FAILED,
+                'provider_response' => ['error' => $e->getMessage()],
+            ]);
+        }
+
+        return $payment->refresh();
     }
 }

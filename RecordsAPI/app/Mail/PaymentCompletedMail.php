@@ -26,11 +26,15 @@ class PaymentCompletedMail extends Mailable
 
     public function content(): Content
     {
+        $event = $this->payment->payable;
+
         return new Content(
-            markdown: 'emails.payment-completed',
+            html: 'emails.payment-completed',
             with: [
                 'payment' => $this->payment,
                 'payableTitle' => $this->payment->metadata['payable_title'] ?? 'Item',
+                'qrCodeHash' => $event->qr_code_hash ?? null,
+                'eventId' => $event->id ?? null,
             ],
         );
     }

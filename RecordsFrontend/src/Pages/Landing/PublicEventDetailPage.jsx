@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "date-utils";
-import { ArrowLeft, CalendarDays, CheckCircle, Clock, Download, Loader2, MapPin, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle, Clock, Download, Loader2, LogOut, MapPin, Phone, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/Context/AuthContext";
+import { canAccessDashboard } from "@/lib/roles";
 import { apiFetch } from "@/APIClients/APIClient";
 import { QRCodeSVG } from "qrcode.react";
+
+const OPERATORS = [
+  { id: "27494cb5-ba9e-437f-a114-4e7a7686bcca", name: "TNM Mpamba", short: "tnm" },
+  { id: "20be6c20-adeb-4b5b-a7ba-0769820df4fb", name: "Airtel Money", short: "airtel" },
+  { id: "550c35a2-86aa-4590-9931-8f23e664cee9", name: "Changu Wallet", short: "changu" },
+];
 
 function formatDate(value) {
   if (!value) return "—";
@@ -37,8 +44,9 @@ function downloadQRCode(svgElement, filename) {
 export default function PublicEventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const qrRef = useRef(null);
+  const pollingRef = useRef(null);
 
   const [event, setEvent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,6 +56,14 @@ export default function PublicEventDetailPage() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [selectedOperator, setSelectedOperator] = useState(OPERATORS[0].id);
+  const [isInitiatingPayment, setIsInitiatingPayment] = useState(false);
+  const [paymentId, setPaymentId] = useState(null);
+  const [paymentState, setPaymentState] = useState("idle");
+  const [paymentError, setPaymentError] = useState(null);
 
   const load = useCallback(() => {
     setIsLoading(true);
@@ -79,6 +95,43 @@ export default function PublicEventDetailPage() {
       .catch(() => {});
   }, [isAuthenticated, id]);
 
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
+
+  const startPolling = useCallback((payId) => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+    }
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const response = await apiFetch(`/v1/payments/${payId}/verify`);
+        const payment = response?.data ?? response;
+
+        if (payment?.status === "completed") {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          setPaymentState("success");
+          setIsRegistered(true);
+          setShowPaymentDialog(false);
+          resetPaymentForm();
+        } else if (payment?.status === "failed") {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          setPaymentState("failed");
+          setPaymentError("Payment was not completed. Please try again.");
+        }
+      } catch (err) {
+        // continue polling
+      }
+    }, 3000);
+  }, []);
+
   const handleRegister = async () => {
     setIsRegistering(true);
     try {
@@ -106,6 +159,65 @@ export default function PublicEventDetailPage() {
 
   const handleDownloadQR = () => {
     downloadQRCode(qrRef.current, `${event.title}-qr-code.png`);
+  };
+
+  const handleLogout = () => {
+    logout(import.meta.env.VITE_LOGTO_POST_LOGOUT_REDIRECT_URI);
+  };
+
+  const resetPaymentForm = () => {
+    setPhoneNumber("");
+    setSelectedOperator(OPERATORS[0].id);
+    setPaymentId(null);
+    setPaymentState("idle");
+    setPaymentError(null);
+  };
+
+  const handleOpenPayment = () => {
+    resetPaymentForm();
+    setShowPaymentDialog(true);
+  };
+
+  const handleClosePayment = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setShowPaymentDialog(false);
+    resetPaymentForm();
+  };
+
+  const handleInitiatePayment = async () => {
+    if (!phoneNumber || phoneNumber.length < 9) {
+      setPaymentError("Please enter a valid phone number");
+      return;
+    }
+
+    setIsInitiatingPayment(true);
+    setPaymentError(null);
+
+    try {
+      const response = await apiFetch("/v1/payments/mobile-money", {
+        method: "POST",
+        body: JSON.stringify({
+          payable_type: "App\\Models\\Event",
+          payable_id: Number(id),
+          amount: Number(event.entry_fee),
+          phone_number: phoneNumber,
+          operator_ref_id: selectedOperator,
+        }),
+      });
+
+      const payId = response?.data?.payment?.id ?? response?.payment?.id;
+      setPaymentId(payId);
+      setPaymentState("waiting");
+      startPolling(payId);
+    } catch (err) {
+      setPaymentError(err?.message || "Failed to initiate payment. Please try again.");
+      setPaymentState("idle");
+    } finally {
+      setIsInitiatingPayment(false);
+    }
   };
 
   if (isLoading) {
@@ -140,11 +252,23 @@ export default function PublicEventDetailPage() {
           </a>
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
-              <a href="/app">
-                <Button size="sm" className="h-8 px-4 text-xs font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full">
-                  Dashboard
+              canAccessDashboard(user) ? (
+                <a href="/app">
+                  <Button size="sm" className="h-8 px-4 text-xs font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full">
+                    Dashboard
+                  </Button>
+                </a>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleLogout}
+                  className="h-8 px-4 text-xs font-medium text-csit-text-muted hover:text-csit-text gap-1.5"
+                >
+                  <LogOut className="size-3.5" />
+                  Sign out
                 </Button>
-              </a>
+              )
             ) : (
               <a href="/login">
                 <Button size="sm" className="h-8 px-4 text-xs font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full">
@@ -222,6 +346,13 @@ export default function PublicEventDetailPage() {
 
           {/* ─── Registration section ─── */}
           <div className="mt-10 p-6 rounded-2xl bg-csit-surface border border-csit-border/50 text-center">
+            {paymentState === "success" && (
+              <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                <p className="text-sm font-medium text-emerald-700">
+                  Payment successful! You are now registered for this event.
+                </p>
+              </div>
+            )}
             {new Date(event.event_date) <= new Date() ? (
               <div className="flex flex-col items-center gap-2">
                 <div className="flex size-10 items-center justify-center rounded-full bg-slate-100">
@@ -272,26 +403,48 @@ export default function PublicEventDetailPage() {
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-csit-text-muted mb-4">
-                    Register to attend this event and check in via QR code.
-                  </p>
-                  <Button
-                    onClick={handleRegister}
-                    disabled={isRegistering}
-                    className="h-10 px-6 text-sm font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full"
-                  >
-                    {isRegistering ? "Registering…" : "Register for this event"}
-                  </Button>
+                  {Number(event.entry_fee) > 0 ? (
+                    <>
+                      <p className="text-sm text-csit-text-muted mb-2">
+                        Pay the entry fee to register for this event.
+                      </p>
+                      <p className="text-lg font-semibold text-csit-text mb-4">
+                        K {Number(event.entry_fee).toFixed(2)}
+                      </p>
+                      <Button
+                        onClick={handleOpenPayment}
+                        className="h-10 px-6 text-sm font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full gap-2"
+                      >
+                        <Phone className="size-4" />
+                        Pay with Mobile Money
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-csit-text-muted mb-4">
+                        Register to attend this event and check in via QR code.
+                      </p>
+                      <Button
+                        onClick={handleRegister}
+                        disabled={isRegistering}
+                        className="h-10 px-6 text-sm font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full"
+                      >
+                        {isRegistering ? "Registering…" : "Register for this event"}
+                      </Button>
+                    </>
+                  )}
                 </>
               )
             ) : (
               <>
                 <p className="text-sm text-csit-text-muted mb-4">
-                  Sign in to register for this event and check in.
+                  {Number(event.entry_fee) > 0
+                    ? "Sign in to pay the entry fee and register for this event."
+                    : "Sign in to register for this event and check in."}
                 </p>
                 <a href="/login">
                   <Button className="h-10 px-6 text-sm font-medium bg-csit-primary hover:bg-csit-primary-dark text-white rounded-full">
-                    Sign in to register
+                    {Number(event.entry_fee) > 0 ? "Sign in to pay & register" : "Sign in to register"}
                   </Button>
                 </a>
               </>
@@ -299,6 +452,174 @@ export default function PublicEventDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* ─── Payment Dialog ─── */}
+      {showPaymentDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-sm w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-csit-text">Pay Entry Fee</h3>
+              <button onClick={handleClosePayment} className="text-csit-text-muted hover:text-csit-text">
+                <XCircle className="size-5" />
+              </button>
+            </div>
+
+            {paymentState === "idle" && (
+              <>
+                <p className="text-sm text-csit-text-muted mb-4">
+                  Enter your mobile money number to pay K {Number(event.entry_fee).toFixed(2)}
+                </p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-csit-text mb-1.5">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="e.g. 991234567"
+                      className="w-full px-3 py-2 text-sm border border-csit-border rounded-lg focus:outline-none focus:ring-2 focus:ring-csit-primary/20 focus:border-csit-primary"
+                    />
+                    <p className="mt-1 text-xs text-csit-text-muted">
+                      Enter 9-digit number without country code or leading zero
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-csit-text mb-1.5">
+                      Mobile Money Provider
+                    </label>
+                    <div className="space-y-2">
+                      {OPERATORS.map((op) => (
+                        <label
+                          key={op.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                            selectedOperator === op.id
+                              ? "border-csit-primary bg-csit-primary/5"
+                              : "border-csit-border hover:border-csit-primary/30"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="operator"
+                            value={op.id}
+                            checked={selectedOperator === op.id}
+                            onChange={(e) => setSelectedOperator(e.target.value)}
+                            className="size-4 text-csit-primary focus:ring-csit-primary/20"
+                          />
+                          <span className="text-sm font-medium text-csit-text">{op.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {paymentError && (
+                  <p className="mt-3 text-sm text-rose-600">{paymentError}</p>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={handleClosePayment}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleInitiatePayment}
+                    disabled={isInitiatingPayment || !phoneNumber}
+                    className="flex-1 bg-csit-primary hover:bg-csit-primary-dark text-white"
+                  >
+                    {isInitiatingPayment ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin mr-2" />
+                        Initiating…
+                      </>
+                    ) : (
+                      "Pay Now"
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {paymentState === "waiting" && (
+              <div className="flex flex-col items-center py-6">
+                <Loader2 size={40} className="animate-spin text-csit-primary mb-4" />
+                <p className="text-sm font-medium text-csit-text mb-1">
+                  Waiting for payment confirmation
+                </p>
+                <p className="text-xs text-csit-text-muted text-center">
+                  Please check your phone and approve the payment prompt.
+                  <br />
+                  This may take a few moments.
+                </p>
+                <Button
+                  variant="ghost"
+                  onClick={handleClosePayment}
+                  className="mt-4 text-sm text-csit-text-muted"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+
+            {paymentState === "success" && (
+              <div className="flex flex-col items-center py-6">
+                <div className="flex size-12 items-center justify-center rounded-full bg-emerald-100 mb-4">
+                  <CheckCircle className="size-6 text-emerald-600" />
+                </div>
+                <p className="text-sm font-medium text-csit-text mb-1">
+                  Payment successful!
+                </p>
+                <p className="text-xs text-csit-text-muted text-center mb-4">
+                  You are now registered for this event.
+                </p>
+                <Button
+                  onClick={handleClosePayment}
+                  className="bg-csit-primary hover:bg-csit-primary-dark text-white"
+                >
+                  Done
+                </Button>
+              </div>
+            )}
+
+            {paymentState === "failed" && (
+              <div className="flex flex-col items-center py-6">
+                <div className="flex size-12 items-center justify-center rounded-full bg-rose-100 mb-4">
+                  <XCircle className="size-6 text-rose-600" />
+                </div>
+                <p className="text-sm font-medium text-csit-text mb-1">
+                  Payment failed
+                </p>
+                <p className="text-xs text-csit-text-muted text-center mb-4">
+                  {paymentError || "The payment was not completed. Please try again."}
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={handleClosePayment}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setPaymentState("idle");
+                      setPaymentError(null);
+                    }}
+                    className="bg-csit-primary hover:bg-csit-primary-dark text-white"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── Cancel confirmation dialog ─── */}
       {showCancelConfirm && (

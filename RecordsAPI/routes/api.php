@@ -52,7 +52,11 @@ Route::prefix('v1')->middleware(['auth:logto', 'throttle:api'])->group(function 
     // Payments
     Route::post('payments', [PaymentController::class, 'store'])
         ->middleware(['throttle:api-write']);
+    Route::post('payments/mobile-money', [PaymentController::class, 'storeMobileMoney'])
+        ->middleware(['throttle:api-write']);
     Route::get('payments/{payment}', [PaymentController::class, 'show'])
+        ->middleware(['throttle:api-read']);
+    Route::get('payments/{payment}/verify', [PaymentController::class, 'verify'])
         ->middleware(['throttle:api-read']);
     Route::get('my-payments', [PaymentController::class, 'myPayments'])
         ->middleware(['throttle:api-read']);

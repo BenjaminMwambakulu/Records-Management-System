@@ -61,7 +61,7 @@ class PayChanguService
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
             'Content-Type' => 'application/json',
-        ])->post("{$this->baseUrl}/payment", $payload);
+        ])->post(rtrim($this->baseUrl, '/').'/payment', $payload);
 
         $result = $response->json();
 
@@ -84,7 +84,7 @@ class PayChanguService
     {
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
-        ])->get("{$this->baseUrl}/verify-payment/{$txRef}");
+        ])->get(rtrim($this->baseUrl, '/')."/verify-payment/{$txRef}");
 
         $result = $response->json();
 
@@ -98,5 +98,84 @@ class PayChanguService
     private function generateTxRef(): string
     {
         return strtoupper(Str::random(8)).'-'.time();
+    }
+
+    /**
+     * Initiate a mobile money payment
+     *
+     * @param array{mobile: string, mobile_money_operator_ref_id: string, amount: float|string, charge_id: string, email?: string, first_name?: string, last_name?: string} $data
+     * @return array{charge_id: string, ref_id: string, trans_id: string|null, status: string}
+     */
+    public function initiateMobileMoney(array $data): array
+    {
+        $payload = [
+            'mobile' => $data['mobile'],
+            'mobile_money_operator_ref_id' => $data['mobile_money_operator_ref_id'],
+            'amount' => number_format((float) $data['amount'], 2, '.', ''),
+            'charge_id' => $data['charge_id'],
+        ];
+
+        if (isset($data['email'])) {
+            $payload['email'] = $data['email'];
+        }
+
+        if (isset($data['first_name'])) {
+            $payload['first_name'] = $data['first_name'];
+        }
+
+        if (isset($data['last_name'])) {
+            $payload['last_name'] = $data['last_name'];
+        }
+
+        $url = rtrim($this->baseUrl, '/').'/mobile-money/payments/initialize';
+        \Log::info('PayChangu mobile money request', ['url' => $url, 'payload' => $payload]);
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer '.$this->apiKey,
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ])->post($url, $payload);
+
+        $result = $response->json();
+        \Log::info('PayChangu mobile money response', ['status' => $response->status(), 'result' => $result]);
+
+        if ($response->failed() || ($result['status'] ?? '') !== 'success') {
+            $message = $result['message'] ?? 'Mobile money payment initiation failed';
+            if (is_array($message)) {
+                $message = implode(' ', array_map(fn ($errors) => is_array($errors) ? implode(' ', $errors) : (string) $errors, $message));
+            }
+            throw new \RuntimeException($message);
+        }
+
+        return [
+            'charge_id' => $result['data']['charge_id'],
+            'ref_id' => $result['data']['ref_id'],
+            'trans_id' => $result['data']['trans_id'] ?? null,
+            'status' => $result['data']['status'],
+        ];
+    }
+
+    /**
+     * Verify mobile money payment status
+     *
+     * @return array{status: string, charge_id: string, ref_id: string, amount: int, currency: string, mobile: string, authorization?: array}
+     */
+    public function verifyMobileMoney(string $chargeId): array
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer '.$this->apiKey,
+            'Accept' => 'application/json',
+        ])->get(rtrim($this->baseUrl, '/')."/mobile-money/payments/{$chargeId}/verify");
+
+        $result = $response->json();
+
+        if ($response->failed()) {
+            throw new \RuntimeException($result['message'] ?? 'Mobile money verification failed');
+        }
+
+        return [
+            'status' => $result['status'] ?? 'failed',
+            'data' => $result['data'] ?? null,
+        ];
     }
 }

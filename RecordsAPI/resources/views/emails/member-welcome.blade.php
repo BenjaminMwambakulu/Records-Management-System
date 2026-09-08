@@ -1,52 +1,119 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to the CSIT Society</title>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+            line-height: 1.6;
+            color: #1b1b18;
+            margin: 0;
+            padding: 0;
+            background-color: #e5e1ec;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 40px;
+            background-color: #ffffff;
+            border: 1px solid #e3e3e0;
+            border-radius: 8px;
+        }
+
+        .header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .logo {
+            color: #f53003;
+            font-size: 24px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+
+        p {
+            margin-bottom: 20px;
+            color: #706f6c;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #110b79;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+
+        .credentials {
+            background-color: #f5f5f4;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+
+        .credentials p {
+            margin-bottom: 8px;
+            color: #1b1b18;
+        }
+
+        .credentials p:last-child {
+            margin-bottom: 0;
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #a1a09a;
+            text-align: center;
+        }
+
+        img {
+            height: 100px;
+            width: auto;
+        }
+    </style>
 </head>
-<body style="margin:0; padding:0; background-color:#f3f1fb; font-family:Arial, Helvetica, sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f1fb; padding:32px 16px;">
-        <tr>
-            <td align="center">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px; background-color:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #dedbe6;">
-                    <tr>
-                        <td style="padding:32px;">
-                            <h1 style="margin:0 0 8px; font-size:22px; color:#110b79; font-weight:700;">
-                                Welcome to the CSIT Society
-                            </h1>
-                            <p style="margin:0 0 20px; font-size:14px; color:#686579;">
-                                Hi {{ $name }},
-                            </p>
-                            <p style="margin:0 0 20px; font-size:14px; color:#1e1e2a; line-height:1.6;">
-                                Your account has been created. Please sign in using your email
-                                (<strong>{{ $email }}</strong>) with the temporary password below:
-                            </p>
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eae7f0; border-radius:8px; margin-bottom:20px;">
-                                <tr>
-                                    <td align="center" style="padding:16px; font-size:18px; font-weight:700; letter-spacing:1px; color:#1e1e2a;">
-                                        {{ $temporaryPassword }}
-                                    </td>
-                                </tr>
-                            </table>
-                            <p style="margin:0 0 20px; font-size:14px; color:#1e1e2a; line-height:1.6;">
-                                Sign in at <a href="{{ $appUrl }}" style="color:#110b79;">{{ $appUrl }}</a>.
-                            </p>
-                            <p style="margin:0; font-size:13px; color:#686579; line-height:1.6;">
-                                For security, please change your password after your first sign in.
-                            </p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:16px 32px; background-color:#f8f7fb; border-top:1px solid #dedbe6;">
-                            <p style="margin:0; font-size:12px; color:#686579;">
-                                &copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="{{ config('app.frontend_url', '/') }}" class="logo">
+                <img src="https://i.ibb.co/Q32VZdCj/csit-logo.png" alt="csit logo">
+            </a>
+        </div>
+
+        <h1>Welcome to the CSIT Society</h1>
+
+        <p>Hello {{ $name }},</p>
+
+        <p>Your account has been created. Please sign in using your email with the temporary password below:</p>
+
+        <div class="credentials">
+            <p><strong>Email:</strong> {{ $email }}</p>
+            <p><strong>Password:</strong> {{ $temporaryPassword }}</p>
+        </div>
+
+        <p>For security, please change your password after your first sign in.</p>
+
+        <div style="text-align: center;">
+            <a href="{{ $appUrl }}" class="button">Sign In</a>
+        </div>
+
+        <p style="margin-top: 30px;">If you have any questions, feel free to reach out to the <a href="mailto:{{ config('admin.email', 'admin@must.ac.mw') }}">Support Team</a>.</p>
+
+        <div class="footer">
+            &copy; {{ date('Y') }} MUST CSIT Society. All rights reserved.
+        </div>
+    </div>
 </body>
 </html>
