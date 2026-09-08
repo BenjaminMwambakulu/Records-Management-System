@@ -61,6 +61,7 @@ return [
         'secret_key' => env('PAYCHANGU_SECRET_KEY'),
         'callback_url' => env('PAYCHANGU_CALLBACK_URL'),
         'return_url' => env('PAYCHANGU_RETURN_URL'),
+        'webhook_secret' => env('PAYCHANGU_WEBHOOK_SECRET'),
     ],
 
 ];
