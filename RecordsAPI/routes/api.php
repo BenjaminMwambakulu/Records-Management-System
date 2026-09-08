@@ -12,11 +12,15 @@ use App\Http\Controllers\Api\FinancialCategoryController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MemberImportController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Webhooks\LogtoWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/webhooks/logto', [LogtoWebhookController::class, 'handleWebhook'])
+    ->middleware('throttle:api-sensitive');
+
+Route::post('v1/payments/callback', [PaymentController::class, 'callback'])
     ->middleware('throttle:api-sensitive');
 
 Route::get('documents/versions/{version}/file', [DocumentController::class, 'downloadVersionFile'])
@@ -44,6 +48,14 @@ Route::prefix('v1')->middleware(['auth:logto', 'throttle:api'])->group(function 
     Route::post('events/{event}/register', [EventController::class, 'register']);
     Route::delete('events/{event}/register', [EventController::class, 'cancelRegistration']);
     Route::get('events/{event}/registration', [EventController::class, 'checkRegistration']);
+
+    // Payments
+    Route::post('payments', [PaymentController::class, 'store'])
+        ->middleware(['throttle:api-write']);
+    Route::get('payments/{payment}', [PaymentController::class, 'show'])
+        ->middleware(['throttle:api-read']);
+    Route::get('my-payments', [PaymentController::class, 'myPayments'])
+        ->middleware(['throttle:api-read']);
 
     // ─── Routes restricted from members ───
     Route::middleware('deny_member')->group(function () {
@@ -148,5 +160,9 @@ Route::prefix('v1')->middleware(['auth:logto', 'throttle:api'])->group(function 
             ->middleware(['throttle:api-write', 'permission:assets.return,logto']);
         Route::get('assets/{asset}/loans', [AssetLoanController::class, 'index'])
             ->middleware(['throttle:api-read', 'permission:assets.view,logto']);
+
+        // Payments — admin routes
+        Route::get('payments', [PaymentController::class, 'index'])
+            ->middleware(['throttle:api-read', 'permission:payments.view,logto']);
     });
 });
