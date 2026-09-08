@@ -20,7 +20,7 @@ class PaymentCompletedMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Payment Confirmation - '.$this->payment->metadata['payable_title'] ?? 'Payment',
+            subject: 'Payment Confirmation - '.($this->payment->metadata['payable_title'] ?? 'Payment'),
         );
     }
 
