@@ -1,0 +1,193 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@import "tailwindcss";
+
+@theme {
+  /* ─────────────────────────────────────────
+     CSIT Society Brand Colors
+     ───────────────────────────────────────── */
+
+  --color-csit-primary: #110b79;
+  --color-csit-primary-dark: #0b0754;
+  --color-csit-primary-light: #2119a3;
+
+  --color-csit-secondary: #5d5279;
+  --color-csit-secondary-dark: #48405f;
+  --color-csit-secondary-light: #756b91;
+
+  /* ─────────────────────────────────────────
+     Neutral Colors
+     ───────────────────────────────────────── */
+
+  --color-csit-background: #ffffff;
+  --color-csit-surface: #f8f7fb;
+  --color-csit-muted: #eae7f0;
+
+  --color-csit-text: #1e1e2a;
+  --color-csit-text-muted: #686579;
+
+  --color-csit-border: #dedbe6;
+
+  /* ─────────────────────────────────────────
+     Dark UI
+     ───────────────────────────────────────── */
+
+  --color-csit-dark: #0a0a0f;
+}
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: var(--color-csit-background);
+    --foreground: var(--color-csit-text);
+    --card: var(--color-csit-background);
+    --card-foreground: var(--color-csit-text);
+    --popover: var(--color-csit-background);
+    --popover-foreground: var(--color-csit-text);
+    --primary: var(--color-csit-primary);
+    --primary-foreground: #ffffff;
+    --secondary: var(--color-csit-surface);
+    --secondary-foreground: var(--color-csit-text);
+    --muted: var(--color-csit-muted);
+    --muted-foreground: var(--color-csit-text-muted);
+    --accent: var(--color-csit-muted);
+    --accent-foreground: var(--color-csit-primary);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: var(--color-csit-border);
+    --input: var(--color-csit-border);
+    --ring: var(--color-csit-primary);
+    --chart-1: var(--color-csit-primary);
+    --chart-2: var(--color-csit-secondary);
+    --chart-3: var(--color-csit-primary-light);
+    --chart-4: var(--color-csit-secondary-light);
+    --chart-5: var(--color-csit-text-muted);
+    --radius: 0.625rem;
+    --sidebar: var(--color-csit-background);
+    --sidebar-foreground: var(--color-csit-text);
+    --sidebar-primary: var(--color-csit-primary);
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: var(--color-csit-muted);
+    --sidebar-accent-foreground: var(--color-csit-text);
+    --sidebar-border: var(--color-csit-border);
+    --sidebar-ring: var(--color-csit-primary);
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+
+.loader {
+  --color-1: #686579;
+  --size: 1px;
+
+  color: var(--color-1);
+  font-family: Consolas, Menlo, Monaco, monospace;
+  font-weight: bold;
+  font-size: calc(78 * var(--size));
+  opacity: 0.8;
+}
+.loader:before {
+    content: '{';
+  display: inline-block;
+  animation: pulse 0.4s alternate infinite ease-in-out;
+}
+.loader:after {
+  content: '}';
+  display: inline-block;
+  animation: pulse 0.4s 0.3s alternate infinite ease-in-out;
+}
+
+@keyframes pulse {
+  to {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+}
