@@ -20,14 +20,18 @@ class PaymentCompletedMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Payment Confirmation',
+            subject: 'Payment Confirmation - '.$this->payment->metadata['payable_title'] ?? 'Payment',
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            html: 'Your payment of '.$this->payment->amount.' '.$this->payment->currency.' has been received.',
+            markdown: 'emails.payment-completed',
+            with: [
+                'payment' => $this->payment,
+                'payableTitle' => $this->payment->metadata['payable_title'] ?? 'Item',
+            ],
         );
     }
 }
