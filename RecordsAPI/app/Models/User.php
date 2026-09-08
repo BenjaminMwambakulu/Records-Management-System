@@ -17,6 +17,15 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, LogsActivity, Notifiable;
 
+    protected static function booted(): void
+    {
+        static::created(function (User $user) {
+            if ($user->roles->isEmpty()) {
+                $user->assignRole('member');
+            }
+        });
+    }
+
     protected $fillable = [
         'logto_id',
         'student_id',
