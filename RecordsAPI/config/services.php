@@ -56,4 +56,11 @@ return [
         ],
     ],
 
+    'paychangu' => [
+        'base_url' => env('PAYCHANGU_BASE_URL', 'https://api.paychangu.com'),
+        'secret_key' => env('PAYCHANGU_SECRET_KEY'),
+        'callback_url' => env('PAYCHANGU_CALLBACK_URL'),
+        'return_url' => env('PAYCHANGU_RETURN_URL'),
+    ],
+
 ];
