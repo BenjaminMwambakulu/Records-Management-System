@@ -18,6 +18,7 @@ import RoleDetailPage from "./Pages/AdminDirectory/RoleDetailPage";
 import LandingPage from './Pages/Landing/LandingPage';
 import PublicEventDetailPage from './Pages/Landing/PublicEventDetailPage';
 import SettingsPage from './Pages/Settings/SettingsPage';
+import MyStudentsIndex from './Pages/MyStudents/MyStudentsIndex';
 import Layout from './Pages/Layout';
 import { canAccessDashboard } from './lib/roles';
 
@@ -113,6 +114,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="members" element={<MembersIndex />} />
+              <Route path="my-students" element={<MyStudentsIndex />} />
               <Route path="events" element={<EventsIndex />} />
               <Route path="events/:id" element={<EventDetailPage />} />
               <Route path="assets" element={<AssetsIndex />} />
