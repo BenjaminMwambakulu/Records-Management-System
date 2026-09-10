@@ -11,7 +11,7 @@ class DefaultUsersSeeder extends Seeder
     private const string GUARD = 'logto';
 
     /**
-     * @var array<int, array{env_key: string, role: string, label: string}>
+     * @var array<int, array{env_key: string, role: string, label: string, academic_track?: string, study_year?: int}>
      */
     private const array USERS = [
         [
@@ -23,6 +23,13 @@ class DefaultUsersSeeder extends Seeder
             'env_key' => 'LOGTO_ADMIN_USER',
             'role' => 'admin',
             'label' => 'Admin',
+        ],
+        [
+            'env_key' => 'LOGTO_YEAR4REP_BIT',
+            'role' => 'year_rep',
+            'label' => 'BIT Year 4 Rep',
+            'academic_track' => 'BIT',
+            'study_year' => 4,
         ],
     ];
 
@@ -48,6 +55,19 @@ class DefaultUsersSeeder extends Seeder
                     $this->command?->info("{$config['label']} already exists with correct role (logto_id: {$logtoId})");
                 }
 
+                // Backfill academic_track and study_year if missing
+                $updates = [];
+                if (isset($config['academic_track']) && $existing->academic_track === null) {
+                    $updates['academic_track'] = $config['academic_track'];
+                }
+                if (isset($config['study_year']) && $existing->study_year === null) {
+                    $updates['study_year'] = $config['study_year'];
+                }
+                if ($updates !== []) {
+                    $existing->update($updates);
+                    $this->command?->info("Backfilled fields for {$config['label']}: " . implode(', ', array_keys($updates)));
+                }
+
                 continue;
             }
 
@@ -58,6 +78,8 @@ class DefaultUsersSeeder extends Seeder
                 'last_name' => '',
                 'email' => "{$logtoId}@logto.placeholder",
                 'student_id' => null,
+                'academic_track' => $config['academic_track'] ?? null,
+                'study_year' => $config['study_year'] ?? null,
             ]));
 
             $user->syncRoles(Role::findOrCreate($config['role'], self::GUARD));
