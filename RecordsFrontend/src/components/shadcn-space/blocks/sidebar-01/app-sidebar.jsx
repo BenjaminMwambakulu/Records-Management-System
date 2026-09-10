@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/Context/AuthContext";
 import { getImagePath } from "@/lib/utils";
 import { NavMain } from "@/components/shadcn-space/blocks/sidebar-01/nav-main";
-import { CalendarDays, FolderOpen, History, LayoutDashboard, LogOut, Package, Shield, Users, Wallet } from "lucide-react";
+import { CalendarDays, FolderOpen, GraduationCap, History, LayoutDashboard, LogOut, Package, Shield, Users, Wallet } from "lucide-react";
 import { hasPermission } from "@/lib/permissions";
 
 export const navData = [
@@ -18,6 +18,7 @@ export const navData = [
 
   { label: "Management", isSection: true },
   { title: "Members", icon: Users, href: "/app/members", permission: "members.view" },
+  { title: "My Students", icon: GraduationCap, href: "/app/my-students", permission: "members.year_rep.manage" },
   { title: "Events", icon: CalendarDays, href: "/app/events", permission: "events.view" },
   { title: "Financial Records", icon: Wallet, href: "/app/financial-records", permission: "financials.view" },
   { title: "Assets", icon: Package, href: "/app/assets", permission: "assets.view" },

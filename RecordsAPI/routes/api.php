@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MemberImportController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\YearRepController;
 use App\Http\Controllers\Webhooks\LogtoWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -168,5 +169,15 @@ Route::prefix('v1')->middleware(['auth:logto', 'throttle:api'])->group(function 
         // Payments — admin routes
         Route::get('payments', [PaymentController::class, 'index'])
             ->middleware(['throttle:api-read', 'permission:payments.view,logto']);
+
+        // Year Representative — scoped student management
+        Route::prefix('year-rep')->middleware(['permission:members.year_rep.manage,logto'])->group(function () {
+            Route::get('students/stats', [YearRepController::class, 'stats']);
+            Route::get('students', [YearRepController::class, 'index']);
+            Route::get('students/{id}', [YearRepController::class, 'show']);
+            Route::post('students', [YearRepController::class, 'store']);
+            Route::put('students/{id}', [YearRepController::class, 'update']);
+            Route::delete('students/{id}', [YearRepController::class, 'destroy']);
+        });
     });
 });

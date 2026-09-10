@@ -52,6 +52,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.delete',
             'documents.versions.create',
         ],
+        'year_rep' => [
+            'members.year_rep.manage',
+        ],
         'dashboard' => [
             'dashboard.view',
         ],
@@ -96,6 +99,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'documents.view',
         ],
         'alumni' => [
+            'events.view',
+            'documents.view',
+        ],
+        'year_rep' => [
+            'members.year_rep.manage',
             'events.view',
             'documents.view',
         ],
