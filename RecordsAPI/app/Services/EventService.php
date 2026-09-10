@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 
 class EventService
 {
+    private const PRIVILEGED_ROLES = ['superadmin', 'admin', 'executive', 'alumni', 'year_rep'];
+
     /**
      * @param  array<string, mixed>  $filters
      */
@@ -24,16 +26,40 @@ class EventService
                         ->orWhere('location', 'ilike', "%{$search}%");
                 });
             })
-            ->when(isset($filters['is_published']), function (Builder $query) use ($filters): void {
-                $query->where('is_published', filter_var($filters['is_published'], FILTER_VALIDATE_BOOLEAN));
+            ->when(! $this->currentUserIsPrivileged(), function (Builder $query): void {
+                $query->where('is_published', true);
             })
+            ->when(
+                $this->currentUserIsPrivileged() && isset($filters['is_published']),
+                function (Builder $query) use ($filters): void {
+                    $query->where('is_published', filter_var($filters['is_published'], FILTER_VALIDATE_BOOLEAN));
+                }
+            )
             ->latest()
             ->paginate($filters['per_page'] ?? 15);
     }
 
     public function find(int $id): ?Event
     {
-        return Event::with(['creator', 'media'])->find($id);
+        $event = Event::with(['creator', 'media'])->find($id);
+
+        if ($event && ! $this->isViewAccessible($event)) {
+            return null;
+        }
+
+        return $event;
+    }
+
+    protected function isViewAccessible(Event $event): bool
+    {
+        return $event->is_published || $this->currentUserIsPrivileged();
+    }
+
+    protected function currentUserIsPrivileged(): bool
+    {
+        $user = auth('logto')->user();
+
+        return $user !== null && $user->hasAnyRole(self::PRIVILEGED_ROLES, 'logto');
     }
 
     /**

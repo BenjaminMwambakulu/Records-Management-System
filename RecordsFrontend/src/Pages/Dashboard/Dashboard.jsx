@@ -12,6 +12,8 @@ import SummaryCard from "@/components/ui/SummaryCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import useDashboardSummary from "@/hooks/useDashboardSummary";
 import PermissionGate from "@/components/PermissionGate";
+import { useAuth } from "@/Context/AuthContext";
+import { hasPermission } from "@/lib/permissions";
 
 const formatCurrency = (amount) =>
   `K ${Number(amount).toLocaleString("en-US", {
@@ -26,6 +28,7 @@ const buildCards = (data) => [
     description: "Registered members",
     icon: <Users size={20} />,
     variant: "default",
+    permission: "members.view",
   },
   {
     title: "Events",
@@ -33,6 +36,7 @@ const buildCards = (data) => [
     description: "Society events",
     icon: <CalendarDays size={20} />,
     variant: "default",
+    permission: "events.view",
   },
   {
     title: "Documents",
@@ -40,6 +44,7 @@ const buildCards = (data) => [
     description: "Stored documents",
     icon: <FileText size={20} />,
     variant: "default",
+    permission: "documents.view",
   },
   {
     title: "Categories",
@@ -47,6 +52,7 @@ const buildCards = (data) => [
     description: "Document categories",
     icon: <FolderTree size={20} />,
     variant: "default",
+    permission: "documents.view",
   },
   {
     title: "Assets",
@@ -54,6 +60,7 @@ const buildCards = (data) => [
     description: `${data.assets_on_loan ?? 0} currently on loan`,
     icon: <Package size={20} />,
     variant: "default",
+    permission: "assets.view",
   },
   {
     title: "Financial Records",
@@ -61,6 +68,7 @@ const buildCards = (data) => [
     description: `Income: ${formatCurrency(data.total_income ?? 0)}`,
     icon: <DollarSign size={20} />,
     variant: "success",
+    permission: "financials.view",
   },
   {
     title: "Total Expense",
@@ -68,6 +76,7 @@ const buildCards = (data) => [
     description: "Total expenses recorded",
     icon: <DollarSign size={20} />,
     variant: "danger",
+    permission: "financials.view",
   },
 ];
 
@@ -118,7 +127,11 @@ function ActivityItem({ activity }) {
 }
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const { data, isLoading, error, refetch } = useDashboardSummary();
+  const visibleCards = buildCards(data ?? {}).filter((card) =>
+    hasPermission(user, card.permission)
+  );
 
   return (
     <PermissionGate permission="dashboard.view">
@@ -143,90 +156,102 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {isLoading
-                ? Array.from({ length: 7 }).map((_, index) => (
-                    <SummaryCardSkeleton key={index} />
-                  ))
-                : buildCards(data).map((card) => (
-                    <SummaryCard key={card.title} {...card} />
-                  ))}
-            </div>
+            {visibleCards.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {isLoading
+                  ? Array.from({ length: visibleCards.length }).map((_, index) => (
+                      <SummaryCardSkeleton key={index} />
+                    ))
+                  : visibleCards.map((card) => (
+                      <SummaryCard key={card.title} {...card} />
+                    ))}
+              </div>
+            ) : (
+              !isLoading && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-400">
+                  No dashboard sections are available for your access level.
+                </div>
+              )
+            )}
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Clock size={18} className="text-slate-500" />
-                    <h2 className="text-sm font-semibold text-slate-700">
-                      Recent Activity
-                    </h2>
+              <PermissionGate permission="activity_logs.view" fallback={null}>
+                <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Clock size={18} className="text-slate-500" />
+                      <h2 className="text-sm font-semibold text-slate-700">
+                        Recent Activity
+                      </h2>
+                    </div>
+                    <Link
+                      to="/app/logs"
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      View All
+                    </Link>
                   </div>
-                  <Link
-                    to="/app/logs"
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                  >
-                    View All
-                  </Link>
+                  {isLoading ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Skeleton key={index} className="h-10 w-full" />
+                      ))}
+                    </div>
+                  ) : data.recent_activity?.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {data.recent_activity.map((activity) => (
+                        <ActivityItem key={activity.id} activity={activity} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400">No recent activity</p>
+                  )}
                 </div>
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <Skeleton key={index} className="h-10 w-full" />
-                    ))}
-                  </div>
-                ) : data.recent_activity?.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
-                    {data.recent_activity.map((activity) => (
-                      <ActivityItem key={activity.id} activity={activity} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-400">No recent activity</p>
-                )}
-              </div>
+              </PermissionGate>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <FileText size={18} className="text-slate-500" />
-                    <h2 className="text-sm font-semibold text-slate-700">
-                      Recent Documents
-                    </h2>
+              <PermissionGate permission="documents.view" fallback={null}>
+                <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <FileText size={18} className="text-slate-500" />
+                      <h2 className="text-sm font-semibold text-slate-700">
+                        Recent Documents
+                      </h2>
+                    </div>
+                    <Link
+                      to="/app/documents"
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      View All
+                    </Link>
                   </div>
-                  <Link
-                    to="/app/documents"
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                  >
-                    View All
-                  </Link>
+                  {isLoading ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Skeleton key={index} className="h-10 w-full" />
+                      ))}
+                    </div>
+                  ) : data.recent_documents?.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {data.recent_documents.map((doc) => (
+                        <div key={doc.id} className="py-3">
+                          <p className="text-sm font-medium text-slate-700 truncate">
+                            {doc.title}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {doc.category?.name ?? "Uncategorized"}
+                            {doc.created_at
+                              ? ` — ${new Date(doc.created_at).toLocaleDateString()}`
+                              : ""}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400">No documents yet</p>
+                  )}
                 </div>
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <Skeleton key={index} className="h-10 w-full" />
-                    ))}
-                  </div>
-                ) : data.recent_documents?.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
-                    {data.recent_documents.map((doc) => (
-                      <div key={doc.id} className="py-3">
-                        <p className="text-sm font-medium text-slate-700 truncate">
-                          {doc.title}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {doc.category?.name ?? "Uncategorized"}
-                          {doc.created_at
-                            ? ` — ${new Date(doc.created_at).toLocaleDateString()}`
-                            : ""}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-400">No documents yet</p>
-                )}
-              </div>
+              </PermissionGate>
             </div>
           </>
         )}

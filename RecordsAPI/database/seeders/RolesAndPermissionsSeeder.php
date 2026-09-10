@@ -106,6 +106,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'members.year_rep.manage',
             'events.view',
             'documents.view',
+            'dashboard.view',
         ],
     ];
 
@@ -141,7 +142,9 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         $superadmin = Role::findOrCreate('superadmin', self::GUARD);
-        $superadmin->syncPermissions($allPermissions);
+        $superadmin->syncPermissions(collect($allPermissions)->reject(
+            fn (string $name): bool => $name === 'members.year_rep.manage'
+        )->all());
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }

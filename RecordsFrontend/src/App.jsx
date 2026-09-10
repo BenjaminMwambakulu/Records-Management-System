@@ -21,6 +21,7 @@ import SettingsPage from './Pages/Settings/SettingsPage';
 import MyStudentsIndex from './Pages/MyStudents/MyStudentsIndex';
 import Layout from './Pages/Layout';
 import { canAccessDashboard } from './lib/roles';
+import { hasPermission } from './lib/permissions';
 
 const config = {
   endpoint: import.meta.env.VITE_LOGTO_ENDPOINT,
@@ -59,6 +60,16 @@ function ProtectedRoute({ children }) {
 
   if (!canAccessDashboard(user)) {
     return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
+function YearRepRoute({ children }) {
+  const { user } = useAuth();
+
+  if (!hasPermission(user, 'members.year_rep.manage')) {
+    return <Navigate to="/app" replace />;
   }
 
   return children;
@@ -114,7 +125,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="members" element={<MembersIndex />} />
-              <Route path="my-students" element={<MyStudentsIndex />} />
+              <Route path="my-students" element={<YearRepRoute><MyStudentsIndex /></YearRepRoute>} />
               <Route path="events" element={<EventsIndex />} />
               <Route path="events/:id" element={<EventDetailPage />} />
               <Route path="assets" element={<AssetsIndex />} />

@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Eye,
   GraduationCap,
   Pencil,
   Plus,
@@ -27,6 +28,7 @@ import useYearRepStudents from "@/hooks/useYearRepStudents";
 import { ACADEMIC_TRACK_OPTIONS } from "@/hooks/useMembersDirectory";
 import StudentFormDialog, { extractErrorMessage } from "./StudentFormDialog";
 import PermissionGate from "@/components/PermissionGate";
+import MemberViewDialog from "@/components/MemberViewDialog";
 
 function academicTrackLabel(value) {
   return (
@@ -99,6 +101,8 @@ export default function MyStudentsIndex() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+
+  const [viewStudent, setViewStudent] = useState(null);
 
   const openCreate = () => {
     setEditingStudent(null);
@@ -255,6 +259,15 @@ export default function MyStudentsIndex() {
                             type="button"
                             variant="ghost"
                             size="icon"
+                            onClick={() => setViewStudent(student)}
+                            aria-label={`View ${student.full_name}`}
+                          >
+                            <Eye className="text-csit-text-muted" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => openEdit(student)}
                             aria-label={`Edit ${student.full_name}`}
                           >
@@ -327,6 +340,14 @@ export default function MyStudentsIndex() {
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
           error={submitError}
+        />
+
+        <MemberViewDialog
+          member={viewStudent}
+          open={Boolean(viewStudent)}
+          onOpenChange={(open) => {
+            if (!open) setViewStudent(null);
+          }}
         />
 
         <Dialog

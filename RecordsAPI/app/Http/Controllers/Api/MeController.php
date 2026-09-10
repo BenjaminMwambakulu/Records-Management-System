@@ -83,15 +83,12 @@ class MeController extends Controller
     {
         try {
             $validated = $request->validate([
-                'avatar' => 'required|file|image|max:2048',
+                'avatar' => 'required|file|image|max:5120',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            $messages = [];
-            foreach ($e->errors()->all() as $msg) {
-                $messages[] = $msg;
-            }
+            $messages = collect($e->errors())->flatten()->all();
             Log::warning('Avatar validation failed', [
-                'errors' => $e->errors()->toArray(),
+                'errors' => $e->errors(),
                 'file_size' => $request->file('avatar')?->getSize(),
             ]);
             return $this->error(implode(' ', $messages), 422);

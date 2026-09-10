@@ -100,6 +100,15 @@ class RoleSyncService
      */
     protected function pullLogtoRolesToLocal(User $user, array $incomingLogtoRoles): void
     {
+        if ($incomingLogtoRoles === []) {
+            Log::warning('Skipped Logto roles pull: incoming roles array is empty; local roles preserved', [
+                'user_id' => $user->id,
+                'local_roles' => $user->getRoleNames()->toArray(),
+            ]);
+
+            return;
+        }
+
         $mappedRoleNames = array_values(array_unique($this->mapLogtoRolesToLocalNames($incomingLogtoRoles)));
 
         $this->assignLocalRoles($user, $mappedRoleNames);

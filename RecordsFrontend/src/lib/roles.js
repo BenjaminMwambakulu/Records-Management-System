@@ -1,4 +1,4 @@
-import { hasPermission } from "./permissions";
+import { hasAnyPermission, hasPermission } from "./permissions";
 
 export { hasPermission } from "./permissions";
 
@@ -23,11 +23,11 @@ export function canAccessDashboard(user) {
 }
 
 export function isDocumentManager(user) {
-  return hasPermission(user, "documents.view");
+  return hasAnyPermission(user, ["documents.create", "documents.update", "documents.delete"]);
 }
 
 export function isEventManager(user) {
-  return hasPermission(user, "events.view");
+  return hasAnyPermission(user, ["events.create", "events.update", "events.delete"]);
 }
 
 export function isFinancialManager(user) {

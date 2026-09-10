@@ -1,10 +1,12 @@
-import { ArrowRight, CheckCircle, FileText, Package, Shield, Users, Clock, BarChart3, Zap, ChevronRight, CalendarDays } from "lucide-react";
+import { ArrowRight, FileText, Package, Shield, Users, Clock, BarChart3, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/Context/AuthContext";
 import { canAccessDashboard } from "@/lib/roles";
 import recordsHero from "@/assets/images/records.webp";
 import mustLogo from "@/assets/images/mustlogo.png";
 import PublicEvents from "./PublicEvents";
+import PublicDocuments from "./PublicDocuments";
 
 const features = [
   {
@@ -45,28 +47,27 @@ const stats = [
   { value: "50+", label: "Assets Tracked" },
   { value: "100%", label: "Audit Compliance" },
 ];
-
-const benefits = [
-  "Eliminate scattered spreadsheets and lost files",
-  "Audit-ready records for university compliance",
-  "Real-time collaboration across executive roles",
-  "Mobile-responsive — manage records anywhere",
-  "Built for MUST CSIT Society's workflow",
-  "Open-source and self-hostable",
-];
-
-const techStack = [
-  { name: "Laravel 11", desc: "Backend" },
-  { name: "React 18", desc: "Frontend" },
-  { name: "Tailwind CSS", desc: "Styling" },
-  { name: "Spatie", desc: "Permissions" },
-  { name: "Logto", desc: "Auth" },
-  { name: "Vite", desc: "Build" },
-];
-
+ 
 export default function LandingPage() {
   const { isAuthenticated, user, logout } = useAuth();
   const showDashboard = canAccessDashboard(user);
+
+  const rawName = user?.name;
+  const isPlaceholderName =
+    !rawName ||
+    /^(undefined|null|NaN|\[object Object\])(\s+(undefined|null|NaN))?$/i.test(
+      rawName.trim()
+    );
+  const displayName = isPlaceholderName
+    ? user?.username || "Guest"
+    : rawName;
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 
   const handleLogout = () => {
     logout(import.meta.env.VITE_LOGTO_POST_LOGOUT_REDIRECT_URI);
@@ -88,16 +89,22 @@ export default function LandingPage() {
             <a href="#events" className="text-xs font-medium text-csit-text-muted hover:text-csit-text transition-colors">
               Events
             </a>
-            <a href="#benefits" className="text-xs font-medium text-csit-text-muted hover:text-csit-text transition-colors">
-              Benefits
-            </a>
-            <a href="#tech" className="text-xs font-medium text-csit-text-muted hover:text-csit-text transition-colors">
-              Tech
+            <a href="#documents" className="text-xs font-medium text-csit-text-muted hover:text-csit-text transition-colors">
+              Documents
             </a>
           </div>
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
               <>
+                {user ? (
+                  <div className="hidden sm:flex items-center gap-2 pl-1 pr-2 py-1 rounded-full border border-csit-border/50">
+                    <Avatar className="size-6">
+                      {user?.avatar ? <AvatarImage src={user.avatar} alt={displayName} /> : null}
+                      <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs font-medium text-csit-text">{displayName}</span>
+                  </div>
+                ) : null}
                 <button
                   onClick={handleLogout}
                   className="text-xs font-medium text-csit-text-muted hover:text-csit-text transition-colors hidden sm:block"
@@ -243,139 +250,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── Benefits — Dark section ─── */}
-      <section id="benefits" className="bg-csit-dark py-24 md:py-32">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <p className="text-sm font-medium text-csit-primary-light mb-3 tracking-wide uppercase">
-                Why CSIT Records
-              </p>
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-6 leading-tight">
-                Purpose-built for
-                <br />
-                student organizations.
-              </h2>
-              <p className="text-base text-white/50 leading-relaxed max-w-md">
-                Not adapted from corporate tools. Built from the ground up for the way student societies actually work at MUST.
-              </p>
-            </div>
-            <div className="space-y-5">
-              {benefits.map((benefit, i) => (
-                <div key={i} className="flex items-start gap-4">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 mt-0.5">
-                    <CheckCircle className="size-4 text-emerald-400" />
-                  </div>
-                  <p className="text-white/80 text-base leading-relaxed">{benefit}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Tech Stack ─── */}
-      <section id="tech" className="py-24 md:py-32">
+      {/* ─── Public Documents ─── */}
+      <section id="documents" className="py-24 md:py-32">
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 rounded-full border border-csit-border bg-csit-surface px-3 py-1 text-xs font-medium text-csit-primary mb-4">
+              <FileText className="size-3.5" />
+              Public Documents
+            </div>
             <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-csit-text mb-4">
-              Built on modern,
+              Read the latest
               <br />
-              reliable technology.
+              society records.
             </h2>
             <p className="text-lg text-csit-text-muted max-w-lg mx-auto">
-              A stack chosen for maintainability, security, and developer experience.
+              Public documents and shared resources from the society — no sign-in required.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 max-w-4xl mx-auto">
-            {techStack.map((tech, i) => (
-              <div key={i} className="text-center group">
-                <div className="flex size-16 mx-auto items-center justify-center rounded-2xl bg-csit-surface border border-csit-border/50 mb-3 group-hover:border-csit-primary/30 transition-colors">
-                  <span className="font-bold text-lg text-csit-primary">{tech.name.charAt(0)}</span>
-                </div>
-                <h3 className="font-semibold text-sm text-csit-text">{tech.name}</h3>
-                <p className="text-xs text-csit-text-muted">{tech.desc}</p>
-              </div>
-            ))}
-          </div>
+          <PublicDocuments />
         </div>
       </section>
-
-      {/* ─── CTA — Dark gradient ─── */}
-      <section className="py-24 md:py-32 bg-gradient-to-b from-csit-dark to-csit-primary-dark">
-        <div className="mx-auto max-w-7xl px-6 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-5">
-            Ready to organize
-            <br />
-            your society?
-          </h2>
-          <p className="text-lg text-white/60 mb-10 max-w-lg mx-auto">
-            Join the MUST CSIT Society in modernizing your records management.
-            Free to start, no credit card required.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href={showDashboard ? "/app" : "/login"}>
-              <Button className="h-12 px-8 text-sm font-medium bg-white text-csit-primary hover:bg-white/90 rounded-full gap-2">
-                {showDashboard ? "Go to Dashboard" : "Get started — free"}
-                <ArrowRight className="size-4" />
-              </Button>
-            </a>
-            <Button variant="outline" className="h-12 px-8 text-sm font-medium border-white/20 text-white hover:bg-white/10 rounded-full">
-              Contact us
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Footer ─── */}
-      <footer className="bg-csit-dark border-t border-white/10">
-        <div className="mx-auto max-w-7xl px-6 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <img src={mustLogo} alt="MUST Logo" className="h-5 w-auto brightness-0 invert" />
-                <span className="font-semibold text-sm text-white tracking-tight">CSIT Records</span>
-              </div>
-              <p className="text-sm text-white/40 max-w-xs leading-relaxed">
-                A records management system built for MUST CSIT Society.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm text-white mb-4">Product</h4>
-              <ul className="space-y-2.5 text-sm text-white/40">
-                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#events" className="hover:text-white transition-colors">Events</a></li>
-                <li><a href="#benefits" className="hover:text-white transition-colors">Benefits</a></li>
-                <li><a href="#tech" className="hover:text-white transition-colors">Tech Stack</a></li>
-                <li><a href={showDashboard ? "/app" : "/login"} className="hover:text-white transition-colors">{showDashboard ? "Dashboard" : "Sign In"}</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm text-white mb-4">Resources</h4>
-              <ul className="space-y-2.5 text-sm text-white/40">
-                <li><a href="#" className="hover:text-white transition-colors">Documentation</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Changelog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Support</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm text-white mb-4">Connect</h4>
-              <ul className="space-y-2.5 text-sm text-white/40">
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-white/30">&copy; 2025 MUST CSIT Society. All rights reserved.</p>
-            <div className="flex items-center gap-1 text-xs text-white/30">
-              Built with <Zap className="size-3 mx-1 text-csit-primary-light" /> by CSIT Society
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

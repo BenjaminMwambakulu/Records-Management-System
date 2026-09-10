@@ -18,6 +18,7 @@ beforeEach(function () {
     ]);
 
     Cache::flush();
+    Role::findOrCreate('member', 'web');
     $this->keys = JwtTestHelper::keyPair();
 
     Http::fake([

@@ -13,7 +13,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class DocumentService
 {
-    private const PRIVILEGED_ROLES = ['superadmin', 'admin', 'executive', 'alumni'];
+    private const PRIVILEGED_ROLES = ['superadmin', 'admin', 'executive', 'alumni', 'year_rep'];
 
     /**
      * @param  array<string, mixed>  $filters

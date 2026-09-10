@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Eye,
   Pencil,
   Plus,
   Search,
@@ -31,6 +32,7 @@ import useMembersDirectory, {
 import MemberFormDialog, { extractErrorMessage } from "./MemberFormDialog";
 import MemberImportDialog from "./MemberImportDialog";
 import PermissionGate from "@/components/PermissionGate";
+import MemberViewDialog from "@/components/MemberViewDialog";
 
 const roleBadgeStyles = {
   superadmin: "bg-[#110b79]/10 text-[#110b79]",
@@ -118,6 +120,8 @@ export default function MembersIndex() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+
+  const [viewMember, setViewMember] = useState(null);
 
   const openCreate = () => {
     setEditingMember(null);
@@ -312,6 +316,15 @@ export default function MembersIndex() {
                             type="button"
                             variant="ghost"
                             size="icon"
+                            onClick={() => setViewMember(member)}
+                            aria-label={`View ${member.full_name}`}
+                          >
+                            <Eye className="text-csit-text-muted" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => openEdit(member)}
                             aria-label={`Edit ${member.full_name}`}
                           >
@@ -384,6 +397,14 @@ export default function MembersIndex() {
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
           error={submitError}
+        />
+
+        <MemberViewDialog
+          member={viewMember}
+          open={Boolean(viewMember)}
+          onOpenChange={(open) => {
+            if (!open) setViewMember(null);
+          }}
         />
 
         <MemberImportDialog

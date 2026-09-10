@@ -12,13 +12,14 @@ test('seeder creates all defined permissions on the logto guard', function () {
 
     $all = Permission::where('guard_name', 'logto')->pluck('name');
 
-    expect($all)->toHaveCount(29);
+    expect($all)->toHaveCount(30);
     expect($all)
         ->toContain('members.view')
         ->toContain('members.create')
         ->toContain('members.update')
         ->toContain('members.delete')
         ->toContain('members.export')
+        ->toContain('members.year_rep.manage')
         ->toContain('events.view')
         ->toContain('events.create')
         ->toContain('events.update')
@@ -96,20 +97,24 @@ test('alumni role gets read-only historic access', function () {
         ->toEqualCanonicalizing(['events.view', 'documents.view']);
 });
 
-test('superadmin role gets every permission', function () {
+test('superadmin role gets every permission except year-rep student management', function () {
     $this->seed(RolesAndPermissionsSeeder::class);
 
     $role = Role::where('name', 'superadmin')->where('guard_name', 'logto')->first();
 
+    $expected = Permission::where('guard_name', 'logto')->pluck('name')
+        ->reject(fn (string $name): bool => $name === 'members.year_rep.manage')
+        ->values()->all();
+
     expect($role->permissions->pluck('name')->values()->all())
-        ->toEqualCanonicalizing(Permission::where('guard_name', 'logto')->pluck('name')->values()->all());
+        ->toEqualCanonicalizing($expected);
 });
 
 test('seeder is idempotent when run twice', function () {
     $this->seed(RolesAndPermissionsSeeder::class);
     $this->seed(RolesAndPermissionsSeeder::class);
 
-    expect(Role::count())->toBe(4);
-    expect(Permission::count())->toBe(29);
+    expect(Role::count())->toBe(5);
+    expect(Permission::count())->toBe(30);
     expect(Role::where('name', 'superadmin')->first()->permissions)->toHaveCount(29);
 });

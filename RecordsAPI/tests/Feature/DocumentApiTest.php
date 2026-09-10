@@ -358,6 +358,30 @@ test('privileged roles can list and view private documents', function () {
         ->assertJsonPath('data.is_public', false);
 });
 
+test('year reps as board members can list and view private documents', function () {
+    Storage::fake('public');
+
+    Role::findOrCreate('member', 'web');
+    Role::create(['name' => 'year_rep', 'guard_name' => 'logto']);
+    $yearRep = User::factory()->create(['logto_id' => 'logto-yearrep']);
+    $yearRep->assignRole(Role::where('name', 'year_rep')->where('guard_name', 'logto')->first());
+
+    $private = Document::factory()->create(['title' => 'Private Doc', 'is_public' => false]);
+
+    $token = 'Bearer '.documentToken(JwtTestHelper::claims('logto-yearrep'), $this->keys);
+
+    $this->withHeader('Authorization', $token)
+        ->getJson('/api/v1/documents')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $private->id);
+
+    $this->withHeader('Authorization', $token)
+        ->getJson("/api/v1/documents/{$private->id}")
+        ->assertOk()
+        ->assertJsonPath('data.is_public', false);
+});
+
 test('admins can toggle a document public flag', function () {
     Storage::fake('public');
 
