@@ -119,8 +119,8 @@ class YearRepController extends Controller
         $validated = $request->validate([
             'first_name' => ['sometimes', 'string', 'max:255'],
             'last_name' => ['sometimes', 'string', 'max:255'],
-            'student_id' => ['sometimes', 'string', 'max:255', 'unique:users,student_id,'.$member->id],
-            'email' => ['sometimes', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,'.$member->id],
+            'student_id' => ['sometimes', 'string', 'max:255', 'unique:users,student_id,'.$id],
+            'email' => ['sometimes', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,'.$id],
             'enrolled_year' => ['sometimes', 'nullable', 'integer', 'min:1950', 'max:2200'],
             'skills' => ['sometimes', 'nullable', 'array'],
             'skills.*' => ['string', 'max:255'],
