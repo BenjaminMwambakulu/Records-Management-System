@@ -83,8 +83,8 @@ class PaymentService
             ]);
 
             if ($payment->isCompleted()) {
-                $this->createFinancialRecord($payment);
-                $this->registerEventAttendance($payment);
+                \App\Jobs\CreateFinancialRecordFromPayment::dispatch($payment);
+                \App\Jobs\RegisterEventAttendanceFromPayment::dispatch($payment);
                 \App\Jobs\PaymentCompletedJob::dispatch($payment);
             }
         } catch (\Exception $e) {
@@ -272,8 +272,8 @@ class PaymentService
             ]);
 
             if ($payment->isCompleted()) {
-                $this->createFinancialRecord($payment);
-                $this->registerEventAttendance($payment);
+                \App\Jobs\CreateFinancialRecordFromPayment::dispatch($payment);
+                \App\Jobs\RegisterEventAttendanceFromPayment::dispatch($payment);
                 \App\Jobs\PaymentCompletedJob::dispatch($payment);
             }
         } catch (\Exception $e) {
