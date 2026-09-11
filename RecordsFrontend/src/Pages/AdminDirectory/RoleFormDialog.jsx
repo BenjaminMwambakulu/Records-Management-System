@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { extractErrorMessage } from "@/lib/errors";
 
 export default function RoleFormDialog({
   open,
@@ -17,26 +16,22 @@ export default function RoleFormDialog({
   role,
   onSubmit,
   isSubmitting,
+  error,
+  fieldErrors = {},
+  onFieldChange,
+  fieldProps = () => ({}),
 }) {
   const isEdit = Boolean(role);
   const [name, setName] = useState("");
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!open) return;
     setName(role?.name ?? "");
-    setError(null);
   }, [open, role]);
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
-    setError(null);
-    try {
-      await onSubmit({ name: name.trim() });
-      onOpenChange(false);
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    }
+    onSubmit({ name: name.trim() });
   };
 
   return (
@@ -55,9 +50,18 @@ export default function RoleFormDialog({
             <Input
               required
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value);
+                onFieldChange?.("name");
+              }}
               placeholder="e.g. moderator"
+              {...fieldProps("name")}
             />
+            {fieldErrors?.name?.length > 0 && (
+              <span id="name-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.name[0]}
+              </span>
+            )}
           </label>
         </form>
 
@@ -68,7 +72,7 @@ export default function RoleFormDialog({
         )}
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button type="submit" form="role-form" disabled={isSubmitting}>

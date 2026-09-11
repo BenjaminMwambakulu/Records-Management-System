@@ -9,7 +9,8 @@ import {
   useState,
 } from "react";
 import { useLogto } from "@logto/react";
-import { api, setTokenGetter } from "../APIClients/APIClient";
+import { api, setTokenGetter, setOnUnauthorized } from "../APIClients/APIClient";
+import { notify } from "../lib/toast";
 
 const AuthContext = createContext(null);
 
@@ -58,6 +59,29 @@ export function AuthProvider({ children }) {
   }, [isAuthenticated, getAccessToken]);
 
   useEffect(() => {
+    setOnUnauthorized(() => {
+      if (!isAuthenticatedRef.current) return;
+      sessionStorage.setItem(
+        "redirectAfterLogin",
+        `${window.location.pathname}${window.location.search}`
+      );
+      notify.error("Session expired", "Please sign in again to continue.");
+      setUser(null);
+      setPermissions([]);
+      fetchedUserRef.current = false;
+      void signOut();
+    });
+  }, [signOut]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !sessionRestored) return;
+    const redirect = sessionStorage.getItem("redirectAfterLogin");
+    if (!redirect || redirect === `${window.location.pathname}${window.location.search}`) return;
+    sessionStorage.removeItem("redirectAfterLogin");
+    window.location.replace(redirect);
+  }, [isAuthenticated, sessionRestored]);
+
+  useEffect(() => {
     if (isLoading) return;
 
     if (!isAuthenticated) {
@@ -79,7 +103,6 @@ export function AuthProvider({ children }) {
             import.meta.env.VITE_LOGTO_APP_RESOURCE || undefined
           );
           const claims = token ? decodeAccessTokenClaims(token) : null;
-          console.log("JWT claims:", claims);
           userData = { ...info, ...(claims || {}) };
         } catch (err) {
           userData = info;

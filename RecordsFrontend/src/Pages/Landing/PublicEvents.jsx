@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "date-utils";
 import { CalendarDays, Loader2, MapPin, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/APIClients/APIClient";
+import { extractErrorMessage } from "@/lib/errors";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -14,25 +15,23 @@ export default function PublicEvents() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
     setIsLoading(true);
-
-    apiFetch("/v1/events?is_published=true&per_page=6")
-      .then((body) => {
-        if (cancelled) return;
-        const list = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
-        setEvents(list);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => { cancelled = true; };
+    setError(null);
+    try {
+      const body = await apiFetch("/v1/events?is_published=true&per_page=6");
+      const list = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
+      setEvents(list);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (isLoading) {
     return (
@@ -42,7 +41,28 @@ export default function PublicEvents() {
     );
   }
 
-  if (error || events.length === 0) return null;
+  if (error) {
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-rose-200 bg-rose-50/50 p-8 text-center"
+      >
+        <p className="text-sm text-rose-600">
+          Failed to load upcoming events. {extractErrorMessage(error)}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={load}
+          className="border-rose-300 text-rose-600 hover:bg-rose-100"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (events.length === 0) return null;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

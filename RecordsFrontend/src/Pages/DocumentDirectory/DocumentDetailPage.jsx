@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { isDocumentManager } from "@/lib/roles";
 import { extractErrorMessage } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -102,7 +103,7 @@ export default function DocumentDetailPage() {
     api
       .get(`/v1/documents/${id}`)
       .then((body) => setDocument(body?.data ?? null))
-      .catch((err) => setError(err))
+      .catch((err) => setError(extractErrorMessage(err)))
       .finally(() => setIsLoading(false));
   }, [id]);
 
@@ -123,8 +124,10 @@ export default function DocumentDetailPage() {
       setVersionFile(null);
       setChangeSummary("");
       await loadDocument();
+      notify.success("Version uploaded", `A new version of ${document.title} was uploaded.`);
     } catch (err) {
       setUploadError(extractErrorMessage(err));
+      notify.error("Upload failed", extractErrorMessage(err));
     } finally {
       setIsUploading(false);
     }
@@ -140,8 +143,13 @@ export default function DocumentDetailPage() {
         ...current,
         is_public: body?.data?.is_public ?? next,
       }));
+      notify.success(
+        next ? "Document made public" : "Document made private",
+        `${document.title} is now ${next ? "public" : "private"}.`
+      );
     } catch (err) {
       setPublicError(extractErrorMessage(err));
+      notify.error("Visibility update failed", extractErrorMessage(err));
     } finally {
       setIsTogglingPublic(false);
     }
@@ -157,7 +165,7 @@ export default function DocumentDetailPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+      <div role="alert" className="flex flex-col items-center justify-center gap-3 py-16 text-center">
         <p className="text-sm text-rose-600">Failed to load this document.</p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate("/app/documents")}>

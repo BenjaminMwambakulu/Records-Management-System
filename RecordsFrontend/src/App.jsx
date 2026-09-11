@@ -2,9 +2,16 @@ import React, { lazy, Suspense } from 'react';
 import { LogtoProvider, UserScope } from '@logto/react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './Context/AuthContext';
+import { Toaster } from './components/ui/toast';
+import { useOnline } from './hooks/useOnline';
 import Layout from './Pages/Layout';
 import { canAccessDashboard } from './lib/roles';
 import { hasPermission } from './lib/permissions';
+
+function ConnectivityMonitor() {
+  useOnline();
+  return null;
+}
 
 // Lazy-loaded page components
 const Callback = lazy(() => import('./Pages/Callback'));
@@ -116,6 +123,8 @@ export default function App() {
     <LogtoProvider config={config}>
       <BrowserRouter>
         <AuthProvider>
+          <Toaster />
+          <ConnectivityMonitor />
           <Routes>
             <Route path="/callback" element={<Suspense fallback={<PageLoader />}><Callback /></Suspense>} />
             <Route
@@ -152,7 +161,7 @@ export default function App() {
             </Route>
           </Routes>
         </AuthProvider>
-      </BrowserRouter> x
+      </BrowserRouter>
     </LogtoProvider>
   );
 }

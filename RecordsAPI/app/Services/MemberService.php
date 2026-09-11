@@ -6,6 +6,7 @@ use App\Jobs\SyncMemberToLogto;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -51,11 +52,15 @@ class MemberService
      */
     public function create(array $data, array $roles = []): User
     {
-        $user = $this->users->create($data);
-
         $roles = $roles === [] ? ['member'] : $roles;
 
-        $this->roleSyncService->assignLocalRoles($user, $roles);
+        $user = DB::transaction(function () use ($data, $roles): User {
+            $user = $this->users->create($data);
+
+            $this->roleSyncService->assignLocalRoles($user, $roles);
+
+            return $user;
+        });
 
         SyncMemberToLogto::dispatch($user, $roles);
 

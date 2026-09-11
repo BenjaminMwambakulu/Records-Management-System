@@ -11,15 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function extractErrorMessage(err) {
-  const bodyErrors = err?.body?.errors;
-  if (bodyErrors && typeof bodyErrors === "object") {
-    const messages = Object.values(bodyErrors).flat().slice(0, 3);
-    if (messages.length) return messages.join(". ");
-  }
-  return err?.message || "Something went wrong. Please try again.";
-}
-
 const STATUS_OPTIONS = [
   { value: "available", label: "Available" },
   { value: "borrowed", label: "Borrowed" },
@@ -42,6 +33,9 @@ export default function AssetFormDialog({
   onSubmit,
   isSubmitting,
   error,
+  fieldErrors,
+  onFieldChange,
+  fieldProps,
 }) {
   const isEdit = Boolean(asset);
 
@@ -66,6 +60,7 @@ export default function AssetFormDialog({
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+    onFieldChange?.(field);
   };
 
   const handleSubmit = (event) => {
@@ -96,26 +91,42 @@ export default function AssetFormDialog({
           <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
             Name
             <Input
+              id="name"
               required
               value={form.name}
+              {...fieldProps("name")}
               onChange={(event) => updateField("name", event.target.value)}
               placeholder="e.g. Projector Epson EB-X41"
             />
+            {fieldErrors?.name?.length > 0 && (
+              <span id="name-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.name[0]}
+              </span>
+            )}
           </label>
 
           <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
             Serial Number
             <Input
+              id="serial_number"
               value={form.serial_number}
+              {...fieldProps("serial_number")}
               onChange={(event) => updateField("serial_number", event.target.value)}
               placeholder="e.g. PR-0041"
             />
+            {fieldErrors?.serial_number?.length > 0 && (
+              <span id="serial_number-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.serial_number[0]}
+              </span>
+            )}
           </label>
 
           <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
             Category
             <select
+              id="category"
               value={form.category}
+              {...fieldProps("category")}
               onChange={(event) => updateField("category", event.target.value)}
               required
               className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -127,12 +138,19 @@ export default function AssetFormDialog({
                 </option>
               ))}
             </select>
+            {fieldErrors?.category?.length > 0 && (
+              <span id="category-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.category[0]}
+              </span>
+            )}
           </label>
 
           <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
             Status
             <select
+              id="status"
               value={form.status}
+              {...fieldProps("status")}
               onChange={(event) => updateField("status", event.target.value)}
               className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
@@ -142,21 +160,36 @@ export default function AssetFormDialog({
                 </option>
               ))}
             </select>
+            {fieldErrors?.status?.length > 0 && (
+              <span id="status-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.status[0]}
+              </span>
+            )}
           </label>
 
           <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
             Notes
             <Textarea
+              id="notes"
               rows={3}
               value={form.notes}
+              {...fieldProps("notes")}
               onChange={(event) => updateField("notes", event.target.value)}
               placeholder="Additional notes about this asset..."
             />
+            {fieldErrors?.notes?.length > 0 && (
+              <span id="notes-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.notes[0]}
+              </span>
+            )}
           </label>
         </form>
 
         {error && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+          <div
+            role="alert"
+            className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+          >
             {error}
           </div>
         )}

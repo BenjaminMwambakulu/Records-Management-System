@@ -28,8 +28,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import useDocumentsDirectory from "@/hooks/useDocumentsDirectory";
+import { useFormErrors } from "@/hooks/useFormErrors";
 import { isDocumentManager } from "@/lib/roles";
-import { extractErrorMessage } from "@/lib/errors";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 import { useAuth } from "@/Context/AuthContext";
 import DocumentFormDialog from "./DocumentFormDialog";
 import CategoryManagerDialog from "./CategoryManagerDialog";
@@ -71,7 +73,7 @@ function TableSkeleton() {
   );
 }
 
-const DocumentRow = React.memo(function DocumentRow({ doc, canManage, onView, onEdit, onToggleArchive, onDelete }) {
+const DocumentRow = React.memo(function DocumentRow({ doc, canManage, onView, onEdit, onToggleArchive, onDelete, isArchiving, isDeleting }) {
   const downloadUrl = doc.latest_version?.file_url ?? null;
   return (
     <TableRow>
@@ -139,6 +141,7 @@ const DocumentRow = React.memo(function DocumentRow({ doc, canManage, onView, on
                 variant="ghost"
                 size="icon"
                 onClick={() => onToggleArchive(doc)}
+                disabled={isArchiving || isDeleting}
                 aria-label={doc.status === "archived" ? `Restore ${doc.title}` : `Archive ${doc.title}`}
               >
                 <Archive className="text-csit-text-muted" />
@@ -148,6 +151,7 @@ const DocumentRow = React.memo(function DocumentRow({ doc, canManage, onView, on
                 variant="ghost"
                 size="icon"
                 onClick={() => onDelete(doc)}
+                disabled={isArchiving || isDeleting}
                 aria-label={`Delete ${doc.title}`}
                 className="hover:bg-rose-50 hover:text-rose-600"
               >
@@ -177,6 +181,7 @@ export default function DocumentsIndex() {
     page,
     setPage,
     categories,
+    categoriesError,
     refetch,
     createDocument,
     updateDocument,
@@ -194,49 +199,65 @@ export default function DocumentsIndex() {
   const [editingDocument, setEditingDocument] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
-  const [archiveError, setArchiveError] = useState(null);
+  const [archivingId, setArchivingId] = useState(null);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const { fieldErrors, formError, applyApiError, clear, clearField, fieldProps } = useFormErrors();
 
   const handleSubmit = async (data) => {
     setIsSubmitting(true);
-    setSubmitError(null);
+    clear();
     try {
       if (editingDocument) {
         await updateDocument(editingDocument.id, data);
+        notify.success("Document updated", `${editingDocument.title} has been updated.`);
       } else {
         await createDocument(data);
+        notify.success("Document uploaded", `${data.title} has been uploaded.`);
       }
       setFormOpen(false);
     } catch (err) {
-      setSubmitError(extractErrorMessage(err));
+      applyApiError(err);
+      if (!isValidationError(err)) notify.error("Save failed", extractErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
+    if (!deleteTarget) return;
     setIsDeleting(true);
     setDeleteError(null);
     try {
       await deleteDocument(deleteTarget.id);
+      notify.success("Document deleted", `${deleteTarget.title} and all its versions were removed.`);
       setDeleteTarget(null);
     } catch (err) {
       setDeleteError(extractErrorMessage(err));
+      notify.error("Delete failed", extractErrorMessage(err));
     } finally {
       setIsDeleting(false);
     }
   };
 
   const handleToggleArchive = async (doc) => {
-    setArchiveError(null);
+    if (archivingId) return;
     const nextStatus = doc.status === "archived" ? "active" : "archived";
+    setArchivingId(doc.id);
     try {
       await setDocumentStatus(doc.id, nextStatus);
+      notify.success(
+        nextStatus === "archived" ? "Document archived" : "Document restored",
+        `${doc.title} is now ${nextStatus}.`
+      );
     } catch (err) {
-      setArchiveError(extractErrorMessage(err));
+      notify.error(
+        nextStatus === "archived" ? "Archive failed" : "Restore failed",
+        extractErrorMessage(err)
+      );
+    } finally {
+      setArchivingId(null);
     }
   };
 
@@ -244,8 +265,6 @@ export default function DocumentsIndex() {
   const lastPage = pagination?.last_page ?? 1;
   const from = pagination?.from ?? 0;
   const to = pagination?.to ?? 0;
-
-  const downloadUrl = (doc) => doc.latest_version?.file_url ?? null;
 
   return (
     <PermissionGate permission="documents.view">
@@ -265,7 +284,7 @@ export default function DocumentsIndex() {
               <Button
                 onClick={() => {
                   setEditingDocument(null);
-                  setSubmitError(null);
+                  clear();
                   setFormOpen(true);
                 }}
               >
@@ -315,8 +334,14 @@ export default function DocumentsIndex() {
             </select>
           </div>
 
+          {categoriesError ? (
+            <p role="alert" className="text-xs text-rose-600">
+              Categories could not be loaded. Filters still work on documents.
+            </p>
+          ) : null}
+
           {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600">
+            <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600">
               <div>Failed to load documents. Please try again.</div>
               <Button
                 type="button"
@@ -365,10 +390,13 @@ export default function DocumentsIndex() {
                       onView={(d) => navigate(`/app/documents/${d.id}`)}
                       onEdit={(d) => {
                         setEditingDocument(d);
+                        clear();
                         setFormOpen(true);
                       }}
                       onToggleArchive={handleToggleArchive}
                       onDelete={(d) => setDeleteTarget(d)}
+                      isArchiving={archivingId === doc.id}
+                      isDeleting={isDeleting}
                     />
                   ))}
                 </TableBody>
@@ -417,19 +445,17 @@ export default function DocumentsIndex() {
           categories={categories}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
-          error={submitError}
+          error={formError}
+          fieldErrors={fieldErrors}
+          onFieldChange={clearField}
+          fieldProps={fieldProps}
         />
-
-        {archiveError && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
-            {archiveError}
-          </div>
-        )}
 
         <CategoryManagerDialog
           open={categoryManagerOpen}
           onOpenChange={setCategoryManagerOpen}
           categories={categories}
+          categoriesError={categoriesError}
           onCreate={createCategory}
           onUpdate={updateCategory}
           onDelete={deleteCategory}

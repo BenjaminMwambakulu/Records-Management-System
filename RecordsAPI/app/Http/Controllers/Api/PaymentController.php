@@ -8,6 +8,7 @@ use App\Http\Requests\StoreMobileMoneyRequest;
 use App\Http\Resources\PaymentResource;
 use App\Http\Responses\APIResponse;
 use App\Services\PaymentService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -46,6 +47,12 @@ class PaymentController extends Controller
                 'Payment initiated successfully',
                 JsonResponse::HTTP_CREATED,
             );
+        } catch (ConnectionException $e) {
+            \Log::error('Payment provider unreachable during initiation', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->error('Payment provider is unavailable. Please try again later.', JsonResponse::HTTP_BAD_GATEWAY);
         } catch (\RuntimeException $e) {
             \Log::error('Payment initiation failed', [
                 'user_id' => $user->id,
@@ -133,7 +140,17 @@ class PaymentController extends Controller
                 'Mobile money payment initiated successfully',
                 JsonResponse::HTTP_CREATED,
             );
+        } catch (ConnectionException $e) {
+            \Log::error('Payment provider unreachable during mobile money initiation', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->error('Payment provider is unavailable. Please try again later.', JsonResponse::HTTP_BAD_GATEWAY);
         } catch (\RuntimeException $e) {
+            \Log::error('Mobile money payment initiation failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
             return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
@@ -159,7 +176,17 @@ class PaymentController extends Controller
                 new PaymentResource($payment),
                 'Payment verified successfully'
             );
+        } catch (ConnectionException $e) {
+            \Log::error('Payment provider unreachable during verification', [
+                'payment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->error('Payment provider is unavailable. Please try again later.', JsonResponse::HTTP_BAD_GATEWAY);
         } catch (\RuntimeException $e) {
+            \Log::error('Payment verification failed', [
+                'payment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
             return $this->error($e->getMessage(), JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
     }

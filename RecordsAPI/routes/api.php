@@ -117,6 +117,8 @@ Route::prefix('v1')->middleware(['auth:logto', 'throttle:api'])->group(function 
             ->middleware(['throttle:api-write', 'permission:events.update,logto']);
         Route::delete('events/{event}/cover', [EventController::class, 'removeCover'])
             ->middleware(['throttle:api-write', 'permission:events.update,logto']);
+        Route::delete('events/{event}/attendances', [EventController::class, 'cancelRegistrations'])
+            ->middleware(['throttle:api-write', 'role:superadmin,logto']);
 
         // Documents — write operations
         Route::post('documents', [DocumentController::class, 'store'])

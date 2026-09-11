@@ -69,6 +69,11 @@ class LogtoService
                 'Failed to find Logto user'
             );
         } catch (\Throwable $e) {
+            Log::warning('Logto user lookup by email failed', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+
             return null;
         }
 

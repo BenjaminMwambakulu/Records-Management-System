@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,17 +17,22 @@ export default function AssignUserDialog({
   open,
   onOpenChange,
   onAssign,
+  isSubmitting,
+  error,
+  fieldErrors = {},
+  onFieldChange,
+  fieldProps = () => ({}),
 }) {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [error, setError] = useState(null);
+  const [searchError, setSearchError] = useState(null);
 
   useEffect(() => {
     if (!open) {
       setSearch("");
       setUsers([]);
-      setError(null);
+      setSearchError(null);
       return;
     }
     const timer = setTimeout(() => {
@@ -37,20 +43,14 @@ export default function AssignUserDialog({
           const body = response.data;
           setUsers(Array.isArray(body) ? body : body?.data ?? []);
         })
-        .catch((err) => setError(extractErrorMessage(err)))
+        .catch((err) => setSearchError(extractErrorMessage(err)))
         .finally(() => setIsSearching(false));
     }, 400);
     return () => clearTimeout(timer);
   }, [search, open]);
 
-  const handleAssign = async (userId) => {
-    setError(null);
-    try {
-      await onAssign(userId);
-      onOpenChange(false);
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    }
+  const handleAssign = (userId) => {
+    onAssign(userId);
   };
 
   return (
@@ -61,11 +61,30 @@ export default function AssignUserDialog({
           <DialogDescription>Search for a user to assign this role to.</DialogDescription>
         </DialogHeader>
 
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name or email…"
-        />
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
+          Search users
+          <Input
+            disabled={isSubmitting}
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              onFieldChange?.("user");
+            }}
+            placeholder="Search by name or email…"
+            {...fieldProps("user")}
+          />
+          {fieldErrors?.user?.length > 0 && (
+            <span id="user-error" className="text-xs text-destructive" role="alert">
+              {fieldErrors.user[0]}
+            </span>
+          )}
+        </label>
+
+        {searchError && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+            {searchError}
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
@@ -73,7 +92,7 @@ export default function AssignUserDialog({
           </div>
         )}
 
-        <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+        <div className="flex max-h-60 flex-col gap-1 overflow-y-auto">
           {isSearching ? (
             <p className="py-4 text-center text-sm text-csit-text-muted">Searching…</p>
           ) : users.length === 0 ? (
@@ -86,7 +105,8 @@ export default function AssignUserDialog({
                 key={u.id}
                 type="button"
                 onClick={() => handleAssign(u.id)}
-                className="flex items-center gap-3 rounded-lg border border-csit-border px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors"
+                disabled={isSubmitting}
+                className="flex items-center gap-3 rounded-lg border border-csit-border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50 disabled:opacity-50"
               >
                 <div className="min-w-0">
                   <p className="font-medium text-csit-text">{u.first_name} {u.last_name}</p>
@@ -98,7 +118,13 @@ export default function AssignUserDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          {isSubmitting && (
+            <span className="flex items-center gap-1 text-xs text-csit-text-muted">
+              <Loader2 className="size-3.5 animate-spin" />
+              Assigning…
+            </span>
+          )}
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Close
           </Button>
         </DialogFooter>

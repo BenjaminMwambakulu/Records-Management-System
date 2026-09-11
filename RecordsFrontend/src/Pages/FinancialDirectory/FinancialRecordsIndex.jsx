@@ -31,8 +31,10 @@ import FinancialRecordFormDialog from "./FinancialRecordFormDialog";
 import { useAuth } from "@/Context/AuthContext";
 import { isFinancialManager } from "@/lib/roles";
 import { formatMoney } from "@/lib/utils";
-import { extractErrorMessage } from "@/lib/errors";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 import useFinancialDirectory from "@/hooks/useFinancialDirectory";
+import { useFormErrors } from "@/hooks/useFormErrors";
 import PermissionGate from "@/components/PermissionGate";
 
 function formatDate(value) {
@@ -144,6 +146,7 @@ export default function FinancialRecordsIndex() {
     page,
     setPage,
     categories,
+    categoriesError,
     isExporting,
     refetch,
     exportCsv,
@@ -160,17 +163,27 @@ export default function FinancialRecordsIndex() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
   const [viewingRecord, setViewingRecord] = useState(null);
 
+  const {
+    fieldErrors,
+    formError,
+    applyApiError,
+    clear: clearFormErrors,
+    clearField,
+    fieldProps,
+  } = useFormErrors();
+
   const openCreate = () => {
+    clearFormErrors();
     setEditingRecord(null);
     setFormOpen(true);
   };
 
   const openEdit = (record) => {
+    clearFormErrors();
     setEditingRecord(record);
     setFormOpen(true);
   };
@@ -181,16 +194,19 @@ export default function FinancialRecordsIndex() {
 
   const handleSubmit = async (data) => {
     setIsSubmitting(true);
-    setSubmitError(null);
+    clearFormErrors();
     try {
       if (editingRecord) {
         await updateRecord(editingRecord.id, data);
+        notify.success("Record updated", `"${data.title}" was updated.`);
       } else {
         await createRecord(data);
+        notify.success("Record added", `"${data.title}" was added.`);
       }
       setFormOpen(false);
     } catch (err) {
-      setSubmitError(extractErrorMessage(err));
+      applyApiError(err);
+      if (!isValidationError(err)) notify.error("Save failed", extractErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -202,10 +218,22 @@ export default function FinancialRecordsIndex() {
     try {
       await deleteRecord(deleteTarget.id);
       setDeleteTarget(null);
+      notify.success("Record deleted", `"${deleteTarget.title}" was removed.`);
     } catch (err) {
-      setDeleteError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setDeleteError(message);
+      notify.error("Delete failed", message);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      await exportCsv();
+      notify.success("Export complete", "Your CSV download should begin shortly.");
+    } catch (err) {
+      notify.error("Export failed", extractErrorMessage(err));
     }
   };
 
@@ -236,7 +264,7 @@ export default function FinancialRecordsIndex() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={exportCsv}
+                onClick={handleExport}
                 disabled={isExporting}
               >
                 <Download />
@@ -413,7 +441,10 @@ export default function FinancialRecordsIndex() {
           categories={categories}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
-          error={submitError}
+          error={formError}
+          fieldErrors={fieldErrors}
+          onFieldChange={clearField}
+          fieldProps={fieldProps}
         />
 
         <FinancialRecordDetailDialog
@@ -443,7 +474,10 @@ export default function FinancialRecordsIndex() {
             </DialogHeader>
 
             {deleteError && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+              >
                 {deleteError}
               </div>
             )}
@@ -473,6 +507,7 @@ export default function FinancialRecordsIndex() {
           open={categoryManagerOpen}
           onOpenChange={setCategoryManagerOpen}
           categories={categories}
+          fetchError={categoriesError}
           onCreate={createCategory}
           onUpdate={updateCategory}
           onDelete={deleteCategory}

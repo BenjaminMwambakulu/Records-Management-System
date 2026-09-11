@@ -19,8 +19,11 @@ import {
 import { useAuth } from "@/Context/AuthContext";
 import { isEventManager } from "@/lib/roles";
 import { formatMoney } from "@/lib/utils";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
+import { useFormErrors } from "@/hooks/useFormErrors";
 import useEventsDirectory from "@/hooks/useEventsDirectory";
-import EventFormDialog, { extractErrorMessage } from "./EventFormDialog";
+import EventFormDialog from "./EventFormDialog";
 import PermissionGate from "@/components/PermissionGate";
 
 function formatDate(value) {
@@ -163,10 +166,11 @@ export default function EventsIndex() {
     deleteEvent,
   } = useEventsDirectory();
 
+  const { fieldErrors, formError, applyApiError, clear, clearField, fieldProps } = useFormErrors();
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -174,19 +178,19 @@ export default function EventsIndex() {
 
   const openCreate = () => {
     setEditingEvent(null);
-    setSubmitError(null);
+    clear();
     setFormOpen(true);
   };
 
   const openEdit = (event) => {
     setEditingEvent(event);
-    setSubmitError(null);
+    clear();
     setFormOpen(true);
   };
 
   const handleSubmit = async (data) => {
     setIsSubmitting(true);
-    setSubmitError(null);
+    clear();
     try {
       if (editingEvent) {
         await updateEvent(editingEvent.id, data);
@@ -194,8 +198,15 @@ export default function EventsIndex() {
         await createEvent(data);
       }
       setFormOpen(false);
+      notify.success(
+        "Event saved",
+        editingEvent ? "The event was updated." : "The event was created."
+      );
     } catch (err) {
-      setSubmitError(extractErrorMessage(err));
+      applyApiError(err);
+      if (!isValidationError(err)) {
+        notify.error("Save failed", extractErrorMessage(err));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -207,8 +218,11 @@ export default function EventsIndex() {
     try {
       await deleteEvent(deleteTarget.id);
       setDeleteTarget(null);
+      notify.success("Event deleted", "The event was permanently removed.");
     } catch (err) {
-      setDeleteError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setDeleteError(message);
+      notify.error("Delete failed", message);
     } finally {
       setIsDeleting(false);
     }
@@ -264,7 +278,10 @@ export default function EventsIndex() {
           </div>
 
           {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600">
+            <div
+              role="alert"
+              className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600"
+            >
               <div>Failed to load events. Please try again.</div>
               <Button
                 type="button"
@@ -370,7 +387,10 @@ export default function EventsIndex() {
           event={editingEvent}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
-          error={submitError}
+          error={formError}
+          fieldErrors={fieldErrors}
+          onFieldChange={clearField}
+          fieldProps={fieldProps}
         />
 
         <Dialog
@@ -392,7 +412,10 @@ export default function EventsIndex() {
             </DialogHeader>
 
             {deleteError && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+              >
                 {deleteError}
               </div>
             )}

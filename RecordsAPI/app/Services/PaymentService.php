@@ -81,16 +81,32 @@ class PaymentService
                 'payment_method' => $verification['authorization']['channel'] ?? null,
                 'paid_at' => $verification['status'] === 'success' ? now() : null,
             ]);
-
-            if ($payment->isCompleted()) {
-                \App\Jobs\CreateFinancialRecordFromPayment::dispatch($payment);
-                \App\Jobs\RegisterEventAttendanceFromPayment::dispatch($payment);
-                \App\Jobs\PaymentCompletedJob::dispatch($payment);
-            }
         } catch (\Exception $e) {
+            \Log::error('Payment verification failed', [
+                'payment_id' => $payment->id,
+                'tx_ref' => $txRef,
+                'error' => $e->getMessage(),
+            ]);
+
             $payment->update([
                 'status' => PaymentStatus::FAILED,
                 'provider_response' => ['error' => $e->getMessage()],
+            ]);
+        }
+
+        if (! $payment->isCompleted()) {
+            return $payment->refresh();
+        }
+
+        try {
+            \App\Jobs\CreateFinancialRecordFromPayment::dispatch($payment);
+            \App\Jobs\RegisterEventAttendanceFromPayment::dispatch($payment);
+            \App\Jobs\PaymentCompletedJob::dispatch($payment);
+        } catch (\Exception $e) {
+            \Log::error('Payment side-effect dispatch failed', [
+                'payment_id' => $payment->id,
+                'tx_ref' => $txRef,
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -270,16 +286,30 @@ class PaymentService
                 'payment_method' => $verification['data']['authorization']['channel'] ?? null,
                 'paid_at' => $status === PaymentStatus::COMPLETED ? now() : null,
             ]);
-
-            if ($payment->isCompleted()) {
-                \App\Jobs\CreateFinancialRecordFromPayment::dispatch($payment);
-                \App\Jobs\RegisterEventAttendanceFromPayment::dispatch($payment);
-                \App\Jobs\PaymentCompletedJob::dispatch($payment);
-            }
         } catch (\Exception $e) {
+            \Log::error('Mobile money verification failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+
             $payment->update([
                 'status' => PaymentStatus::FAILED,
                 'provider_response' => ['error' => $e->getMessage()],
+            ]);
+        }
+
+        if (! $payment->isCompleted()) {
+            return $payment->refresh();
+        }
+
+        try {
+            \App\Jobs\CreateFinancialRecordFromPayment::dispatch($payment);
+            \App\Jobs\RegisterEventAttendanceFromPayment::dispatch($payment);
+            \App\Jobs\PaymentCompletedJob::dispatch($payment);
+        } catch (\Exception $e) {
+            \Log::error('Payment side-effect dispatch failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
             ]);
         }
 

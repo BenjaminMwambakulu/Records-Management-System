@@ -24,6 +24,9 @@ export default function DocumentFormDialog({
   onSubmit,
   isSubmitting,
   error,
+  fieldErrors,
+  onFieldChange,
+  fieldProps,
 }) {
   const isEdit = Boolean(doc);
 
@@ -80,9 +83,16 @@ export default function DocumentFormDialog({
             <Input
               required
               value={form.title}
-              onChange={(event) => updateField("title", event.target.value)}
+              onChange={(event) => {
+                updateField("title", event.target.value);
+                onFieldChange?.("title");
+              }}
+              {...fieldProps("title")}
               placeholder="e.g. Executive Committee Report 2026"
             />
+            {fieldErrors?.title?.length > 0 && (
+              <span id="title-error" className="text-xs text-destructive" role="alert">{fieldErrors.title[0]}</span>
+            )}
           </label>
 
           {!isEdit ? (
@@ -91,8 +101,15 @@ export default function DocumentFormDialog({
               <Input
                 required
                 type="file"
-                onChange={(event) => updateField("file", event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  updateField("file", event.target.files?.[0] ?? null);
+                  onFieldChange?.("file");
+                }}
+                {...fieldProps("file")}
               />
+              {fieldErrors?.file?.length > 0 && (
+                <span id="file-error" className="text-xs text-destructive" role="alert">{fieldErrors.file[0]}</span>
+              )}
             </label>
           ) : null}
 
@@ -101,7 +118,11 @@ export default function DocumentFormDialog({
               Category
               <select
                 value={form.category_id}
-                onChange={(event) => updateField("category_id", event.target.value)}
+                onChange={(event) => {
+                  updateField("category_id", event.target.value);
+                  onFieldChange?.("category_id");
+                }}
+                {...fieldProps("category_id")}
                 className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <option value="">Uncategorized</option>
@@ -116,7 +137,11 @@ export default function DocumentFormDialog({
               Status
               <select
                 value={form.status}
-                onChange={(event) => updateField("status", event.target.value)}
+                onChange={(event) => {
+                  updateField("status", event.target.value);
+                  onFieldChange?.("status");
+                }}
+                {...fieldProps("status")}
                 className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {STATUS_OPTIONS.map((option) => (

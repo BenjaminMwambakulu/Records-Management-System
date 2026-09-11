@@ -11,7 +11,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { LogOut, Loader2, Check, X, Camera, AlertCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { notify } from "@/lib/toast";
+import { extractErrorMessage } from "@/lib/errors";
 
 function getInitials(name) {
   return name
@@ -33,10 +35,35 @@ export default function SettingsPage() {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [avatarError, setAvatarError] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [profileError, setProfileError] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const fileInputRef = useRef(null);
 
+  const loadProfile = useCallback(async () => {
+    setProfileError(null);
+    setProfileLoading(true);
+    try {
+      const res = await api.get("/v1/me");
+      setProfile(res?.data);
+    } catch (err) {
+      setProfileError(extractErrorMessage(err));
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    api.get("/v1/me").then((res) => setProfile(res?.data)).catch(() => {});
+    let cancelled = false;
+    api.get("/v1/me")
+      .then((res) => {
+        if (!cancelled) setProfile(res?.data);
+      })
+      .catch((err) => {
+        if (!cancelled) setProfileError(extractErrorMessage(err));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const rawName = user?.name;
@@ -72,9 +99,9 @@ export default function SettingsPage() {
       setProfile(res?.data);
       await refreshUser();
       setAvatarPreview(null);
+      notify.success("Avatar updated", "Your profile picture was updated.");
     } catch (err) {
-      const msg = err.body?.message || err.message || "Upload failed";
-      setAvatarError(msg);
+      setAvatarError(extractErrorMessage(err));
       setAvatarPreview(null);
     } finally {
       setUploading(false);
@@ -107,9 +134,9 @@ export default function SettingsPage() {
       setProfile(res?.data);
       await refreshUser();
       setEditingName(false);
+      notify.success("Name updated", "Your name was updated.");
     } catch (err) {
-      const msg = err.body?.message || err.message || "Update failed";
-      setNameError(msg);
+      setNameError(extractErrorMessage(err));
     } finally {
       setSavingName(false);
     }
@@ -142,6 +169,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
+                aria-label="Upload avatar"
                 className="absolute -right-1 -bottom-1 flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 {uploading ? (
@@ -168,6 +196,21 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+
+          {profileError && (
+            <div
+              className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              <span className="flex items-center gap-2">
+                <AlertCircle className="size-4 shrink-0" />
+                {profileError}
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={loadProfile} disabled={profileLoading}>
+                {profileLoading ? "Retrying…" : "Retry"}
+              </Button>
+            </div>
+          )}
 
           {avatarError && (
             <div className="mt-3 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -198,6 +241,7 @@ export default function SettingsPage() {
                     size="icon-xs"
                     onClick={saveName}
                     disabled={savingName}
+                    aria-label="Save name"
                   >
                     {savingName ? (
                       <Loader2 className="size-3.5 animate-spin" />
@@ -209,6 +253,7 @@ export default function SettingsPage() {
                     variant="ghost"
                     size="icon-xs"
                     onClick={cancelEditName}
+                    aria-label="Cancel"
                   >
                     <X className="size-3.5" />
                   </Button>
@@ -217,6 +262,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={startEditName}
+                  aria-label="Edit name"
                   className="group mt-1 flex items-center gap-1 text-muted-foreground hover:text-foreground"
                 >
                   {displayName}

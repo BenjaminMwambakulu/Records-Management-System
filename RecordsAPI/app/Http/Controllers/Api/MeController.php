@@ -81,18 +81,9 @@ class MeController extends Controller
 
     public function uploadAvatar(Request $request): JsonResponse
     {
-        try {
-            $validated = $request->validate([
-                'avatar' => 'required|file|image|max:5120',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            $messages = collect($e->errors())->flatten()->all();
-            Log::warning('Avatar validation failed', [
-                'errors' => $e->errors(),
-                'file_size' => $request->file('avatar')?->getSize(),
-            ]);
-            return $this->error(implode(' ', $messages), 422);
-        }
+        $request->validate([
+            'avatar' => 'required|file|image|max:5120',
+        ]);
 
         $user = $request->user();
 
@@ -107,9 +98,20 @@ class MeController extends Controller
 
         $url = Storage::disk('public')->url($filename);
 
-        app(LogtoService::class)->updateUserProfile($user->logto_id, [
-            'avatar' => $url,
-        ]);
+        try {
+            app(LogtoService::class)->updateUserProfile($user->logto_id, [
+                'avatar' => $url,
+            ]);
+        } catch (\Throwable $e) {
+            Storage::disk('public')->delete($filename);
+
+            Log::warning('Avatar upload rolled back after Logto update failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
 
         return $this->success(
             ['avatar' => $url],

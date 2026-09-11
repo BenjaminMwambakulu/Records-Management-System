@@ -25,7 +25,7 @@ class DocumentController extends Controller
         protected DocumentService $documentService,
     ) {
         $this->middleware('role:admin|superadmin,logto')->except(
-            'index', 'show', 'listVersions', 'showVersion',
+            'index', 'show', 'listVersions', 'showVersion', 'downloadVersionFile',
         );
     }
 

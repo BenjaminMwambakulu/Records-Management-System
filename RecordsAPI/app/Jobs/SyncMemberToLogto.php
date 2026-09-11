@@ -92,4 +92,12 @@ class SyncMemberToLogto implements ShouldQueue
             'logto_id' => $this->member->logto_id,
         ]);
     }
+
+    public function failed(\Throwable $e): void
+    {
+        Log::critical('Failed to sync member to Logto', [
+            'user_id' => $this->member->id,
+            'error' => $e->getMessage(),
+        ]);
+    }
 }

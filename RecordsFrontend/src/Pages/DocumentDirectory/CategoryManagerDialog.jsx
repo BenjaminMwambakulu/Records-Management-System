@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { extractErrorMessage } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 
 const emptyForm = { name: "", description: "" };
 
@@ -18,6 +19,7 @@ export default function CategoryManagerDialog({
   open,
   onOpenChange,
   categories,
+  categoriesError,
   onCreate,
   onUpdate,
   onDelete,
@@ -53,13 +55,17 @@ export default function CategoryManagerDialog({
     try {
       if (editing) {
         await onUpdate(editing.id, payload);
+        notify.success("Category updated", `${payload.name} was updated.`);
+        setEditing(null);
+        setForm(emptyForm);
       } else {
         await onCreate(payload);
+        notify.success("Category created", `${payload.name} was added.`);
+        setForm(emptyForm);
       }
-      setForm(emptyForm);
-      setEditing(null);
     } catch (err) {
       setError(extractErrorMessage(err));
+      notify.error(editing ? "Update failed" : "Create failed", extractErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -70,9 +76,11 @@ export default function CategoryManagerDialog({
     setError(null);
     try {
       await onDelete(confirming.id);
+      notify.success("Category deleted", `${confirming.name} was deleted.`);
       setConfirming(null);
     } catch (err) {
       setError(extractErrorMessage(err));
+      notify.error("Delete failed", extractErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -117,12 +125,16 @@ export default function CategoryManagerDialog({
           <div className="flex justify-end">
             <Button type="submit" size="sm" disabled={isSubmitting}>
               <Plus />
-              {editing ? "Save changes" : "Add category"}
+              {isSubmitting ? "Saving…" : editing ? "Save changes" : "Add category"}
             </Button>
           </div>
         </form>
 
-        {categories.length === 0 ? (
+        {categoriesError ? (
+          <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+            Categories could not be loaded. Please try again later.
+          </p>
+        ) : categories.length === 0 ? (
           <p className="py-4 text-sm text-csit-text-muted">No categories yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">

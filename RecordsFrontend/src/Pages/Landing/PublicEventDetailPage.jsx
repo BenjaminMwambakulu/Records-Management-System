@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/Context/AuthContext";
 import { canAccessDashboard } from "@/lib/roles";
 import { apiFetch } from "@/APIClients/APIClient";
+import { extractErrorMessage } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 import { QRCodeSVG } from "qrcode.react";
 
 const OPERATORS = [
@@ -54,6 +56,7 @@ export default function PublicEventDetailPage() {
 
   const [isRegistered, setIsRegistered] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [registrationError, setRegistrationError] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -61,7 +64,6 @@ export default function PublicEventDetailPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedOperator, setSelectedOperator] = useState(OPERATORS[0].id);
   const [isInitiatingPayment, setIsInitiatingPayment] = useState(false);
-  const [paymentId, setPaymentId] = useState(null);
   const [paymentState, setPaymentState] = useState("idle");
   const [paymentError, setPaymentError] = useState(null);
 
@@ -103,55 +105,71 @@ export default function PublicEventDetailPage() {
     };
   }, []);
 
-  const startPolling = useCallback((payId) => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-    }
-
-    pollingRef.current = setInterval(async () => {
-      try {
-        const response = await apiFetch(`/v1/payments/${payId}/verify`);
-        const payment = response?.data ?? response;
-
-        if (payment?.status === "completed") {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          setPaymentState("success");
-          setIsRegistered(true);
-          setShowPaymentDialog(false);
-          resetPaymentForm();
-        } else if (payment?.status === "failed") {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          setPaymentState("failed");
-          setPaymentError("Payment was not completed. Please try again.");
-        }
-      } catch (err) {
-        // continue polling
-      }
-    }, 3000);
+  const resetPaymentForm = useCallback(() => {
+    setPhoneNumber("");
+    setSelectedOperator(OPERATORS[0].id);
+    setPaymentState("idle");
+    setPaymentError(null);
   }, []);
+
+  const startPolling = useCallback(
+    (payId) => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+
+      pollingRef.current = setInterval(async () => {
+        try {
+          const response = await apiFetch(`/v1/payments/${payId}/verify`);
+          const payment = response?.data ?? response;
+
+          if (payment?.status === "completed") {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            setPaymentState("success");
+            setIsRegistered(true);
+            setShowPaymentDialog(false);
+            resetPaymentForm();
+            notify.success("Payment successful", "You are now registered for this event.");
+          } else if (payment?.status === "failed") {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            setPaymentState("failed");
+            setPaymentError("Payment was not completed. Please try again.");
+          }
+        } catch {
+          // continue polling
+        }
+      }, 3000);
+    },
+    [resetPaymentForm]
+  );
 
   const handleRegister = async () => {
     setIsRegistering(true);
+    setRegistrationError(null);
     try {
       await apiFetch(`/v1/events/${id}/register`, { method: "POST" });
       setIsRegistered(true);
+      notify.success("You're registered", "Show your QR code at the event to check in.");
     } catch (err) {
-      // already registered or error
+      const message = extractErrorMessage(err);
+      setRegistrationError(message);
+      notify.error("Registration failed", message);
     } finally {
       setIsRegistering(false);
     }
   };
 
   const handleCancel = async () => {
-    setShowCancelConfirm(false);
     setIsCancelling(true);
     try {
       await apiFetch(`/v1/events/${id}/register`, { method: "DELETE" });
       setIsRegistered(false);
+      setShowCancelConfirm(false);
+      notify.success("Registration cancelled", "You can register again whenever you'd like.");
     } catch (err) {
-      // error
+      notify.error("Could not cancel registration", extractErrorMessage(err));
     } finally {
       setIsCancelling(false);
     }
@@ -163,14 +181,6 @@ export default function PublicEventDetailPage() {
 
   const handleLogout = () => {
     logout(import.meta.env.VITE_LOGTO_POST_LOGOUT_REDIRECT_URI);
-  };
-
-  const resetPaymentForm = () => {
-    setPhoneNumber("");
-    setSelectedOperator(OPERATORS[0].id);
-    setPaymentId(null);
-    setPaymentState("idle");
-    setPaymentError(null);
   };
 
   const handleOpenPayment = () => {
@@ -209,7 +219,6 @@ export default function PublicEventDetailPage() {
       });
 
       const payId = response?.data?.payment?.id ?? response?.payment?.id;
-      setPaymentId(payId);
       setPaymentState("waiting");
       startPolling(payId);
     } catch (err) {
@@ -231,7 +240,7 @@ export default function PublicEventDetailPage() {
   if (error || !event) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-white text-center px-4">
-        <p className="text-sm text-rose-600">Failed to load this event.</p>
+        <p role="alert" className="text-sm text-rose-600">Failed to load this event.</p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate("/")}>
             Back to home
@@ -403,6 +412,11 @@ export default function PublicEventDetailPage() {
                 </div>
               ) : (
                 <>
+                  {registrationError && (
+                    <p role="alert" className="mb-3 text-sm text-rose-600">
+                      {registrationError}
+                    </p>
+                  )}
                   {Number(event.entry_fee) > 0 ? (
                     <>
                       <p className="text-sm text-csit-text-muted mb-2">
@@ -517,7 +531,7 @@ export default function PublicEventDetailPage() {
                 </div>
 
                 {paymentError && (
-                  <p className="mt-3 text-sm text-rose-600">{paymentError}</p>
+                  <p role="alert" className="mt-3 text-sm text-rose-600">{paymentError}</p>
                 )}
 
                 <div className="flex gap-3 mt-6">
@@ -637,6 +651,7 @@ export default function PublicEventDetailPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCancelConfirm(false)}
+                disabled={isCancelling}
                 className="h-9 px-4 text-sm"
               >
                 Keep registration

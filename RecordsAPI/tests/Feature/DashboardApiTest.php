@@ -60,3 +60,28 @@ test('dashboard summary returns record counts', function () {
         ->assertJsonPath('data.documents', 4)
         ->assertJsonPath('data.document_categories', 1);
 });
+
+test('superadmin with both superadmin and member roles can access dashboard summary', function () {
+    $superadminUser = User::factory()->create(['logto_id' => 'logto-superadmin']);
+    $superadminUser->assignRole(logtoSuperadminRole());
+    // Auto-assigned or explicitly assigned member role
+    $superadminUser->assignRole(logtoMemberRole());
+
+    expect($superadminUser->hasRole('member', 'logto'))->toBeTrue();
+    expect($superadminUser->hasRole('superadmin', 'logto'))->toBeTrue();
+
+    $this->withHeader('Authorization', 'Bearer '.dashboardToken(JwtTestHelper::claims('logto-superadmin'), $this->keys))
+        ->getJson('/api/v1/dashboard/summary')
+        ->assertOk()
+        ->assertJsonPath('success', true);
+});
+
+test('user with only member role is denied dashboard summary', function () {
+    $memberUser = User::factory()->create(['logto_id' => 'logto-plain-member']);
+    $memberUser->syncRoles(logtoMemberRole());
+
+    $this->withHeader('Authorization', 'Bearer '.dashboardToken(JwtTestHelper::claims('logto-plain-member'), $this->keys))
+        ->getJson('/api/v1/dashboard/summary')
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Forbidden');
+});

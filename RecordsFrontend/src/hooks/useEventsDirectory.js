@@ -142,6 +142,18 @@ export default function useEventsDirectory() {
     [refetch]
   );
 
+  const cancelRegistrations = useCallback(
+    async (id, userIds, reason) => {
+      const response = await api.delete(`/v1/events/${id}/attendances`, {
+        user_ids: userIds,
+        reason: reason?.trim() || null,
+      });
+      await refetch();
+      return response?.data ?? null;
+    },
+    [refetch]
+  );
+
   return {
     events,
     pagination,
@@ -159,6 +171,7 @@ export default function useEventsDirectory() {
     createEvent,
     updateEvent,
     deleteEvent,
+    cancelRegistrations,
     uploadCover,
     removeCover,
   };

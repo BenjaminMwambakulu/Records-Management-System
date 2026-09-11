@@ -3,6 +3,8 @@ import "date-utils";
 import { FileText, FolderOpen, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/APIClients/APIClient";
+import { extractErrorMessage } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -22,26 +24,31 @@ export default function PublicDocuments() {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
+    setError(null);
 
     apiFetch("/v1/documents?per_page=6")
       .then((body) => {
         if (cancelled) return;
         const list = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
-        setDocuments(list);
+        setDocuments(list.filter((document) => document.is_public));
       })
       .catch((err) => {
-        if (!cancelled) setError(err);
+        if (!cancelled) {
+          setError(err);
+          notify.error("Failed to load documents", extractErrorMessage(err));
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [retryCount]);
 
   if (isLoading) {
     return (
@@ -51,7 +58,18 @@ export default function PublicDocuments() {
     );
   }
 
-  if (error || documents.length === 0) return null;
+  if (error) {
+    return (
+      <div role="alert" className="flex flex-col items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-center">
+        <p className="text-sm text-rose-600">Published documents could not be loaded.</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (documents.length === 0) return null;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

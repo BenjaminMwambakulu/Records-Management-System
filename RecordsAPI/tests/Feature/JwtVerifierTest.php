@@ -103,3 +103,39 @@ test('rejects an expired token', function () {
     expect(fn () => app(JwtVerifier::class)->verify($token))
         ->toThrow(JwtVerificationException::class);
 });
+
+test('retries the JWKS fetch once before failing authentication', function () {
+    config(['services.logto.endpoint' => 'https://retry-logto.test']);
+
+    $token = JwtTestHelper::sign(
+        JwtTestHelper::claims('logto-123'),
+        $this->keys['private_pem'],
+        $this->keys['kid'],
+    );
+
+    Http::fakeSequence('https://retry-logto.test/oidc/jwks')
+        ->push([], 503)
+        ->push(['keys' => [JwtTestHelper::jwk($this->keys['public_pem'], $this->keys['kid'])]], 200);
+
+    $claims = app(JwtVerifier::class)->verify($token);
+
+    expect($claims['sub'])->toBe('logto-123')
+        ->and(Http::recorded())->toHaveCount(2);
+});
+
+test('fails authentication when the JWKS remains unreachable', function () {
+    config(['services.logto.endpoint' => 'https://retry-logto.test']);
+
+    $token = JwtTestHelper::sign(
+        JwtTestHelper::claims('logto-123'),
+        $this->keys['private_pem'],
+        $this->keys['kid'],
+    );
+
+    Http::fakeSequence('https://retry-logto.test/oidc/jwks')
+        ->push([], 503)
+        ->push([], 503);
+
+    expect(fn () => app(JwtVerifier::class)->verify($token))
+        ->toThrow(JwtVerificationException::class);
+});

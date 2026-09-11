@@ -9,6 +9,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
 
 class AssetLoanService
 {
@@ -22,15 +23,19 @@ class AssetLoanService
             throw new \InvalidArgumentException('Asset is not available for checkout');
         }
 
-        $loan = AssetLoan::create([
-            'asset_id' => $asset->id,
-            'borrower_id' => $borrower->id,
-            'issued_by' => $issuedBy->id,
-            'checkout_date' => Carbon::now(),
-            'due_date' => $data['due_date'],
-        ]);
+        $loan = DB::transaction(function () use ($asset, $borrower, $issuedBy, $data): AssetLoan {
+            $loan = AssetLoan::create([
+                'asset_id' => $asset->id,
+                'borrower_id' => $borrower->id,
+                'issued_by' => $issuedBy->id,
+                'checkout_date' => Carbon::now(),
+                'due_date' => $data['due_date'],
+            ]);
 
-        $asset->update(['status' => AssetStatus::BORROWED]);
+            $asset->update(['status' => AssetStatus::BORROWED]);
+
+            return $loan;
+        });
 
         return $loan->load(['borrower', 'issuedBy']);
     }
@@ -46,10 +51,14 @@ class AssetLoanService
             throw new ModelNotFoundException('No active loan found for this asset');
         }
 
-        $activeLoan->update(['returned_date' => Carbon::now()]);
-        $asset->update(['status' => AssetStatus::AVAILABLE]);
+        $loan = DB::transaction(function () use ($asset, $activeLoan): AssetLoan {
+            $activeLoan->update(['returned_date' => Carbon::now()]);
+            $asset->update(['status' => AssetStatus::AVAILABLE]);
 
-        return $activeLoan->load(['borrower', 'issuedBy']);
+            return $activeLoan;
+        });
+
+        return $loan->load(['borrower', 'issuedBy']);
     }
 
     public function listByAsset(Asset $asset, array $filters = []): LengthAwarePaginator

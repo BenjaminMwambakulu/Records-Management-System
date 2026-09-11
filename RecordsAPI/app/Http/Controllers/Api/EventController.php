@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CancelRegistrationsRequest;
 use App\Http\Requests\StoreEventRequest;
 use App\Http\Requests\UpdateEventRequest;
 use App\Http\Requests\UploadEventCoverRequest;
@@ -21,7 +22,7 @@ class EventController extends Controller
         protected EventService $eventService,
     ) {
         $this->middleware('permission:events.create|events.update|events.delete|events.checkin,logto')->except(
-            'index', 'show', 'attendances', 'register', 'checkRegistration', 'cancelRegistration',
+            'index', 'show', 'attendances', 'register', 'checkRegistration', 'cancelRegistration', 'cancelRegistrations',
         );
     }
 
@@ -158,6 +159,30 @@ class EventController extends Controller
         $this->eventService->cancelRegistration($event);
 
         return $this->success(null, 'Registration cancelled');
+    }
+
+    public function cancelRegistrations(CancelRegistrationsRequest $request, int $id): JsonResponse
+    {
+        $event = $this->eventService->find($id);
+
+        if (! $event) {
+            return $this->error('Event not found', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        if ($event->event_date->isPast()) {
+            return $this->error('Cancellation is closed — this event has already passed.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $cancelled = $this->eventService->cancelRegistrations(
+            $event,
+            $request->validated('user_ids'),
+            $request->validated('reason'),
+        );
+
+        return $this->success(
+            ['cancelled' => $cancelled],
+            'Registrations cancelled successfully'
+        );
     }
 
     public function uploadCover(UploadEventCoverRequest $request, int $id): JsonResponse

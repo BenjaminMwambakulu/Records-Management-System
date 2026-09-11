@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { extractErrorMessage } from "@/lib/errors";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
+import { useFormErrors } from "@/hooks/useFormErrors";
 import useRolesDirectory from "@/hooks/useRolesDirectory";
 import RoleFormDialog from "./RoleFormDialog";
 import DeleteRoleDialog from "./DeleteRoleDialog";
@@ -69,10 +71,14 @@ export default function RoleDetailPage() {
     currentRole, isLoading, error, permissions, isSubmitting,
     fetchRole, updateRole, deleteRole, syncPermissions, assignRoleToUser, removeRoleFromUser,
   } = useRolesDirectory();
+  const editForm = useFormErrors();
+  const deleteForm = useFormErrors();
+  const assignForm = useFormErrors();
   const [selectedPerms, setSelectedPerms] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState(null);
 
   useEffect(() => {
     if (id) fetchRole(id);
@@ -83,6 +89,69 @@ export default function RoleDetailPage() {
       setSelectedPerms(currentRole.permissions.map((p) => p.name));
     }
   }, [currentRole]);
+
+  const handleUpdateRole = async (data) => {
+    editForm.clear();
+    try {
+      await updateRole(currentRole.id, data);
+      setEditOpen(false);
+      notify.success("Role updated", `Role "${data.name}" was updated.`);
+    } catch (err) {
+      editForm.applyApiError(err);
+      if (!isValidationError(err)) notify.error("Could not update role", extractErrorMessage(err));
+    }
+  };
+
+  const handleDeleteRole = async (id) => {
+    deleteForm.clear();
+    try {
+      await deleteRole(id);
+      setDeleteTarget(null);
+      notify.success("Role deleted", "Role was deleted.");
+      navigate("/app/roles");
+    } catch (err) {
+      deleteForm.applyApiError(err);
+      if (!isValidationError(err)) notify.error("Could not delete role", extractErrorMessage(err));
+    }
+  };
+
+  const handleAssignUser = async (userId) => {
+    assignForm.clear();
+    try {
+      await assignRoleToUser(currentRole.id, userId);
+      setAssignOpen(false);
+      notify.success("Member(s) added", "User was added to this role.");
+    } catch (err) {
+      assignForm.applyApiError(err);
+      if (!isValidationError(err)) notify.error("Could not add member", extractErrorMessage(err));
+    }
+  };
+
+  const handleRemoveUser = async (userId) => {
+    const member = currentRole?.users?.find((u) => u.id === userId);
+    const memberName = member ? `${member.first_name} ${member.last_name}` : "Member";
+    if (!window.confirm(`Remove ${memberName} from the "${currentRole.name}" role? They will lose this role's permissions.`)) {
+      return;
+    }
+    setRemovingUserId(userId);
+    try {
+      await removeRoleFromUser(currentRole.id, userId);
+      notify.success("Member removed", `${memberName} was removed from this role.`);
+    } catch (err) {
+      notify.error("Could not remove member", extractErrorMessage(err));
+    } finally {
+      setRemovingUserId(null);
+    }
+  };
+
+  const handleSyncPermissions = async () => {
+    try {
+      await syncPermissions(currentRole.id, selectedPerms);
+      notify.success("Permissions saved", "Role permissions were updated.");
+    } catch (err) {
+      notify.error("Could not save permissions", extractErrorMessage(err));
+    }
+  };
 
   if (isLoading && !currentRole) {
     return (
@@ -95,12 +164,15 @@ export default function RoleDetailPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6" role="alert">
         <Button variant="ghost" size="sm" onClick={() => navigate("/app/roles")} className="w-fit">
           <ArrowLeft /> Back to roles
         </Button>
         <Card className="border-csit-border bg-white p-6">
           <p className="text-sm text-rose-600">{extractErrorMessage(error)}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => fetchRole(id)} className="mt-4">
+            Retry
+          </Button>
         </Card>
       </div>
     );
@@ -149,10 +221,15 @@ export default function RoleDetailPage() {
           <div className="mt-4 flex justify-end">
             <Button
               type="button"
-              onClick={() => syncPermissions(currentRole.id, selectedPerms)}
+              onClick={handleSyncPermissions}
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Saving…" : "Save permissions"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Saving…
+                </>
+              ) : "Save permissions"}
             </Button>
           </div>
         </Card>
@@ -179,11 +256,16 @@ export default function RoleDetailPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={() => removeRoleFromUser(currentRole.id, u.id)}
+                      onClick={() => handleRemoveUser(u.id)}
+                      disabled={removingUserId === u.id}
                       aria-label={`Remove ${u.first_name}`}
                       className="hover:bg-rose-50 hover:text-rose-600"
                     >
-                      <Trash2 className="text-csit-text-muted" />
+                      {removingUserId === u.id ? (
+                        <Loader2 className="size-4 animate-spin text-csit-text-muted" />
+                      ) : (
+                        <Trash2 className="text-csit-text-muted" />
+                      )}
                     </Button>
                   ) : null}
                 </div>
@@ -194,25 +276,44 @@ export default function RoleDetailPage() {
 
         <RoleFormDialog
           open={editOpen}
-          onOpenChange={setEditOpen}
+          onOpenChange={(open) => {
+            if (!open && isSubmitting) return;
+            setEditOpen(open);
+            if (open) editForm.clear();
+          }}
           role={currentRole}
-          onSubmit={(data) => updateRole(currentRole.id, data)}
+          onSubmit={handleUpdateRole}
           isSubmitting={isSubmitting}
+          error={editForm.formError}
+          fieldErrors={editForm.fieldErrors}
+          onFieldChange={editForm.clearField}
+          fieldProps={editForm.fieldProps}
         />
 
         <DeleteRoleDialog
           open={Boolean(deleteTarget)}
-          onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+          onOpenChange={(open) => {
+            if (!open && isSubmitting) return;
+            setDeleteTarget(open ? deleteTarget : null);
+          }}
           role={deleteTarget}
-          onDelete={deleteRole}
+          onDelete={handleDeleteRole}
           isSubmitting={isSubmitting}
+          error={deleteForm.formError}
         />
 
         <AssignUserDialog
           open={assignOpen}
-          onOpenChange={setAssignOpen}
-          onAssign={(userId) => assignRoleToUser(currentRole.id, userId)}
+          onOpenChange={(open) => {
+            if (!open && isSubmitting) return;
+            setAssignOpen(open);
+          }}
+          onAssign={handleAssignUser}
           isSubmitting={isSubmitting}
+          error={assignForm.formError}
+          fieldErrors={assignForm.fieldErrors}
+          onFieldChange={assignForm.clearField}
+          fieldProps={assignForm.fieldProps}
         />
       </div>
     </PermissionGate>

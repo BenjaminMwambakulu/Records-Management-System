@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { extractErrorMessage } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 
 const emptyForm = { name: "", description: "" };
 
@@ -21,6 +22,7 @@ export default function FinancialCategoryManagerDialog({
   onCreate,
   onUpdate,
   onDelete,
+  fetchError,
 }) {
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState(null);
@@ -55,12 +57,16 @@ export default function FinancialCategoryManagerDialog({
         await onUpdate(editing.id, payload);
         setEditing(null);
         setForm(emptyForm);
+        notify.success("Category updated", `"${payload.name}" was updated.`);
       } else {
         await onCreate(payload);
         setForm(emptyForm);
+        notify.success("Category added", `"${payload.name}" was added.`);
       }
     } catch (err) {
-      setError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setError(message);
+      notify.error(editing ? "Update failed" : "Create failed", message);
     } finally {
       setIsSubmitting(false);
     }
@@ -72,8 +78,11 @@ export default function FinancialCategoryManagerDialog({
     try {
       await onDelete(confirming.id);
       setConfirming(null);
+      notify.success("Category deleted", `"${confirming.name}" was removed.`);
     } catch (err) {
-      setError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setError(message);
+      notify.error("Delete failed", message);
     } finally {
       setIsSubmitting(false);
     }
@@ -91,8 +100,20 @@ export default function FinancialCategoryManagerDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {fetchError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+          >
+            Could not load categories. Please try again.
+          </div>
+        )}
+
         {error && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+          <div
+            role="alert"
+            className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+          >
             {error}
           </div>
         )}

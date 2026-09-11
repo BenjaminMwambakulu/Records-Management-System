@@ -34,7 +34,7 @@ export default function useRolesDirectory() {
         const body = response.data;
         setPermissions(body ?? {});
       })
-      .catch(() => {});
+      .catch((err) => setError(err));
   }, []);
 
   const fetchRole = useCallback((id) => {

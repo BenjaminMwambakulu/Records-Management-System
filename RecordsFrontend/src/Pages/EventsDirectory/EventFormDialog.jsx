@@ -13,15 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function extractErrorMessage(err) {
-  const bodyErrors = err?.body?.errors;
-  if (bodyErrors && typeof bodyErrors === "object") {
-    const messages = Object.values(bodyErrors).flat().slice(0, 3);
-    if (messages.length) return messages.join(". ");
-  }
-  return err?.message || "Something went wrong. Please try again.";
-}
-
 function toDateTimeLocal(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -39,6 +30,9 @@ export default function EventFormDialog({
   onSubmit,
   isSubmitting,
   error,
+  fieldErrors,
+  onFieldChange,
+  fieldProps = () => ({}),
 }) {
   const isEdit = Boolean(event);
 
@@ -136,37 +130,67 @@ export default function EventFormDialog({
           <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
             Title
             <Input
+              id="title"
               required
+              {...fieldProps("title")}
               value={form.title}
-              onChange={(event) => updateField("title", event.target.value)}
+              onChange={(event) => {
+                updateField("title", event.target.value);
+                onFieldChange?.("title");
+              }}
               placeholder="e.g. Hackathon 2026"
             />
+            {fieldErrors?.title?.length > 0 && (
+              <span id="title-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.title[0]}
+              </span>
+            )}
           </label>
 
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Entry fee (K)
               <Input
+                id="entry_fee"
                 required
+                {...fieldProps("entry_fee")}
                 type="number"
                 min="0"
                 step="0.01"
                 value={form.entry_fee}
-                onChange={(event) => updateField("entry_fee", event.target.value)}
+                onChange={(event) => {
+                  updateField("entry_fee", event.target.value);
+                  onFieldChange?.("entry_fee");
+                }}
                 placeholder="e.g. 5000"
               />
+              {fieldErrors?.entry_fee?.length > 0 && (
+                <span id="entry_fee-error" className="text-xs text-destructive" role="alert">
+                  {fieldErrors.entry_fee[0]}
+                </span>
+              )}
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Budget (K)
               <Input
+                id="budget"
                 required
+                {...fieldProps("budget")}
                 type="number"
                 min="0"
                 step="0.01"
                 value={form.budget}
-                onChange={(event) => updateField("budget", event.target.value)}
+                onChange={(event) => {
+                  updateField("budget", event.target.value);
+                  onFieldChange?.("budget");
+                }}
                 placeholder="e.g. 200000"
               />
+              {fieldErrors?.budget?.length > 0 && (
+                <span id="budget-error" className="text-xs text-destructive" role="alert">
+                  {fieldErrors.budget[0]}
+                </span>
+              )}
             </label>
           </div>
 
@@ -174,25 +198,43 @@ export default function EventFormDialog({
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Event date
               <Input
+                id="event_date"
                 required
+                {...fieldProps("event_date")}
                 type="datetime-local"
                 value={form.event_date}
                 onChange={(event) => {
                   updateField("event_date", event.target.value);
+                  onFieldChange?.("event_date");
                   setDateError("");
                 }}
               />
+              {fieldErrors?.event_date?.length > 0 && (
+                <span id="event_date-error" className="text-xs text-destructive" role="alert">
+                  {fieldErrors.event_date[0]}
+                </span>
+              )}
               {dateError && (
-                <span className="text-xs text-rose-600">{dateError}</span>
+                <span role="alert" className="text-xs text-destructive">{dateError}</span>
               )}
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Location / Venue
               <Input
+                id="location"
+                {...fieldProps("location")}
                 value={form.location}
-                onChange={(event) => updateField("location", event.target.value)}
+                onChange={(event) => {
+                  updateField("location", event.target.value);
+                  onFieldChange?.("location");
+                }}
                 placeholder="e.g. Lecture Hall 3"
               />
+              {fieldErrors?.location?.length > 0 && (
+                <span id="location-error" className="text-xs text-destructive" role="alert">
+                  {fieldErrors.location[0]}
+                </span>
+              )}
             </label>
           </div>
 
@@ -200,38 +242,71 @@ export default function EventFormDialog({
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Start time
               <Input
+                id="start_time"
+                {...fieldProps("start_time")}
                 type="time"
                 value={form.start_time}
-                onChange={(event) => updateField("start_time", event.target.value)}
+                onChange={(event) => {
+                  updateField("start_time", event.target.value);
+                  onFieldChange?.("start_time");
+                }}
               />
+              {fieldErrors?.start_time?.length > 0 && (
+                <span id="start_time-error" className="text-xs text-destructive" role="alert">
+                  {fieldErrors.start_time[0]}
+                </span>
+              )}
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Duration (minutes)
               <Input
+                id="duration"
+                {...fieldProps("duration")}
                 type="number"
                 min="1"
                 value={form.duration}
-                onChange={(event) => updateField("duration", event.target.value)}
+                onChange={(event) => {
+                  updateField("duration", event.target.value);
+                  onFieldChange?.("duration");
+                }}
                 placeholder="e.g. 120"
               />
+              {fieldErrors?.duration?.length > 0 && (
+                <span id="duration-error" className="text-xs text-destructive" role="alert">
+                  {fieldErrors.duration[0]}
+                </span>
+              )}
             </label>
           </div>
 
           <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
             Description
             <Textarea
+              id="description"
+              {...fieldProps("description")}
               rows={3}
               value={form.description}
-              onChange={(event) => updateField("description", event.target.value)}
+              onChange={(event) => {
+                updateField("description", event.target.value);
+                onFieldChange?.("description");
+              }}
               placeholder="What will happen at this event?"
             />
+            {fieldErrors?.description?.length > 0 && (
+              <span id="description-error" className="text-xs text-destructive" role="alert">
+                {fieldErrors.description[0]}
+              </span>
+            )}
           </label>
 
           <label className="flex items-center justify-between gap-3 rounded-lg border border-csit-border bg-white px-3 py-2.5 text-xs font-medium text-csit-text">
             Publish event
             <Switch
               checked={form.is_published}
-              onCheckedChange={(value) => updateField("is_published", value)}
+              onCheckedChange={(value) => {
+                updateField("is_published", value);
+                onFieldChange?.("is_published");
+              }}
             />
           </label>
 
@@ -281,7 +356,7 @@ export default function EventFormDialog({
         </form>
 
         {error && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+          <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
             {error}
           </div>
         )}

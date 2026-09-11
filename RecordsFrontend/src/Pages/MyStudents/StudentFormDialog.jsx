@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/Context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,17 @@ import {
 } from "@/components/ui/dialog";
 import { ACADEMIC_TRACK_OPTIONS } from "@/hooks/useMembersDirectory";
 
-export function extractErrorMessage(err) {
-  const bodyErrors = err?.body?.errors;
-  if (bodyErrors && typeof bodyErrors === "object") {
-    const messages = Object.values(bodyErrors).flat().slice(0, 3);
-    if (messages.length) return messages.join(". ");
-  }
-  return err?.message || "Something went wrong. Please try again.";
+function FieldError({ errors, name }) {
+  if (!errors?.[name]?.length) return null;
+  return (
+    <span
+      id={`${name}-error`}
+      className="text-xs text-destructive"
+      role="alert"
+    >
+      {errors[name][0]}
+    </span>
+  );
 }
 
 function academicTrackLabel(value) {
@@ -35,9 +39,14 @@ export default function StudentFormDialog({
   onSubmit,
   isSubmitting,
   error,
+  fieldErrors,
+  fieldProps,
+  onFieldChange,
+  clear,
 }) {
   const { user } = useAuth();
   const isEdit = Boolean(student);
+  const clearRef = useRef(clear);
 
   const trackLabel = academicTrackLabel(user?.academic_track);
 
@@ -51,7 +60,12 @@ export default function StudentFormDialog({
   });
 
   useEffect(() => {
+    clearRef.current = clear;
+  });
+
+  useEffect(() => {
     if (!open) return;
+    clearRef.current?.();
     setForm({
       first_name: student?.first_name ?? "",
       last_name: student?.last_name ?? "",
@@ -64,6 +78,7 @@ export default function StudentFormDialog({
   }, [open, student]);
 
   const updateField = (field, value) => {
+    onFieldChange?.(field);
     setForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -113,18 +128,22 @@ export default function StudentFormDialog({
               <Input
                 required
                 value={form.first_name}
+                {...fieldProps("first_name")}
                 onChange={(event) => updateField("first_name", event.target.value)}
                 placeholder="John"
               />
+              <FieldError errors={fieldErrors} name="first_name" />
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Last name
               <Input
                 required
                 value={form.last_name}
+                {...fieldProps("last_name")}
                 onChange={(event) => updateField("last_name", event.target.value)}
                 placeholder="Doe"
               />
+              <FieldError errors={fieldErrors} name="last_name" />
             </label>
           </div>
 
@@ -134,9 +153,11 @@ export default function StudentFormDialog({
               <Input
                 required
                 value={form.student_id}
+                {...fieldProps("student_id")}
                 onChange={(event) => updateField("student_id", event.target.value)}
                 placeholder="BIT-000-00"
               />
+              <FieldError errors={fieldErrors} name="student_id" />
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Email
@@ -144,9 +165,11 @@ export default function StudentFormDialog({
                 required
                 type="email"
                 value={form.email}
+                {...fieldProps("email")}
                 onChange={(event) => updateField("email", event.target.value)}
                 placeholder="name@must.ac.mw"
               />
+              <FieldError errors={fieldErrors} name="email" />
             </label>
           </div>
 
@@ -158,17 +181,21 @@ export default function StudentFormDialog({
                 min="1950"
                 max="2200"
                 value={form.enrolled_year}
+                {...fieldProps("enrolled_year")}
                 onChange={(event) => updateField("enrolled_year", event.target.value)}
                 placeholder="e.g. 2024"
               />
+              <FieldError errors={fieldErrors} name="enrolled_year" />
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Skills
               <Input
                 value={form.skills}
+                {...fieldProps("skills")}
                 onChange={(event) => updateField("skills", event.target.value)}
                 placeholder="Comma separated"
               />
+              <FieldError errors={fieldErrors} name="skills" />
             </label>
           </div>
         </form>

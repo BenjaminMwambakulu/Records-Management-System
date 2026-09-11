@@ -2,15 +2,22 @@ import { hasAnyPermission, hasPermission } from "./permissions";
 
 export { hasPermission } from "./permissions";
 
-const ADMIN_ROLE_NAMES = ["super_admin", "org_admin"];
+const ADMIN_ROLE_NAMES = ["super_admin", "superadmin", "org_admin", "admin"];
 
 function hasRole(user, roleNames) {
   if (!user || !Array.isArray(user.roles)) return false;
-  return user.roles.some((role) => roleNames.includes(role?.name));
+  return user.roles.some((role) => {
+    const roleName = typeof role === "string" ? role : role?.name;
+    return roleNames.includes(roleName);
+  });
 }
 
 export function isAdminUser(user) {
   return hasRole(user, ADMIN_ROLE_NAMES);
+}
+
+export function isSuperAdmin(user) {
+  return hasRole(user, ["super_admin", "superadmin"]);
 }
 
 export function isMember(user) {

@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "date-utils";
-import { ArrowLeft, CalendarDays, Loader2, MapPin, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Loader2, MapPin, UserMinus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatMoney } from "@/lib/utils";
+import { useAuth } from "@/Context/AuthContext";
+import { isSuperAdmin } from "@/lib/roles";
+import { extractErrorMessage } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 import useEventsDirectory from "@/hooks/useEventsDirectory";
 
 function formatDate(value) {
@@ -34,12 +40,25 @@ function MetaRow({ label, value }) {
   );
 }
 
-function AttendeesTable({ attendances, isLoading, error, onRetry }) {
+function AttendeesTable({
+  attendances,
+  isLoading,
+  error,
+  onRetry,
+  showSelection,
+  selectedIds,
+  onToggle,
+  onToggleAll,
+}) {
+  const selectableCount = attendances.filter((attendance) => attendance.user?.id).length;
+  const allSelected = selectableCount > 0 && selectedIds.size === selectableCount;
+  const colSpan = showSelection ? 5 : 4;
+
   if (isLoading) {
     return (
       <TableBody>
         <TableRow>
-          <TableCell colSpan={4}>
+          <TableCell colSpan={colSpan}>
             <div className="my-4 flex justify-center">
               <Loader2 size={24} className="animate-spin text-csit-primary" />
             </div>
@@ -51,7 +70,10 @@ function AttendeesTable({ attendances, isLoading, error, onRetry }) {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600">
+      <div
+        role="alert"
+        className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600"
+      >
         <div>Failed to load attendees. Please try again.</div>
         <Button
           type="button"
@@ -83,10 +105,25 @@ function AttendeesTable({ attendances, isLoading, error, onRetry }) {
     );
   }
 
+  const checkbox = (memberId, checked, onChange, label) => (
+    <input
+      type="checkbox"
+      className="size-4 accent-csit-primary"
+      checked={checked}
+      onChange={onChange}
+      aria-label={label}
+    />
+  );
+
   return (
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
+          {showSelection ? (
+            <TableHead className="w-10 px-4">
+              {checkbox(null, allSelected, onToggleAll, "Select all attendees")}
+            </TableHead>
+          ) : null}
           <TableHead className="px-4">Member</TableHead>
           <TableHead>Student ID</TableHead>
           <TableHead>Academic track</TableHead>
@@ -96,8 +133,21 @@ function AttendeesTable({ attendances, isLoading, error, onRetry }) {
       <TableBody>
         {attendances.map((attendance) => {
           const member = attendance.user ?? {};
+          const memberId = attendance.user?.id;
           return (
             <TableRow key={attendance.id}>
+              {showSelection ? (
+                <TableCell className="w-10 px-4">
+                  {memberId
+                    ? checkbox(
+                        memberId,
+                        selectedIds.has(memberId),
+                        () => onToggle(memberId),
+                        `Select ${member.full_name ?? memberId}`
+                      )
+                    : null}
+                </TableCell>
+              ) : null}
               <TableCell className="px-4">
                 <div className="flex items-center gap-2.5">
                   <Avatar>
@@ -130,16 +180,70 @@ function AttendeesTable({ attendances, isLoading, error, onRetry }) {
 export default function EventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const { fetchEvent, fetchAttendances } = useEventsDirectory();
+  const { fetchEvent, fetchAttendances, cancelRegistrations } = useEventsDirectory();
 
   const [event, setEvent] = useState(null);
+  const [isUpcoming, setIsUpcoming] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [attendances, setAttendances] = useState([]);
   const [attendancesLoading, setAttendancesLoading] = useState(true);
   const [attendancesError, setAttendancesError] = useState(null);
+
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+
+  const canCancel = isSuperAdmin(user);
+
+  const toggleSelection = useCallback((userId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size > 0) return new Set();
+      return new Set(
+        attendances.map((attendance) => attendance.user?.id).filter(Boolean)
+      );
+    });
+  }, [attendances]);
+
+  const handleCancel = async () => {
+    const ids = Array.from(selectedIds);
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      await cancelRegistrations(event?.id, ids, cancelReason);
+      setCancelDialogOpen(false);
+      setCancelReason("");
+      setSelectedIds(new Set());
+      await reloadAttendances();
+      notify.success(
+        "Registrations cancelled",
+        `Registrations for ${ids.length} member(s) were cancelled.`
+      );
+    } catch (err) {
+      const message = extractErrorMessage(err);
+      setCancelError(message);
+      notify.error("Cancellation failed", message);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const load = useCallback(() => {
     setIsLoading(true);
@@ -151,6 +255,9 @@ export default function EventDetailPage() {
       .then(([eventResult, attendeesResult]) => {
         if (eventResult.status === "fulfilled") {
           setEvent(eventResult.value);
+          setIsUpcoming(
+            new Date(eventResult.value.event_date).getTime() > Date.now()
+          );
         } else {
           setError(eventResult.reason);
         }
@@ -190,7 +297,7 @@ export default function EventDetailPage() {
   if (error || !event) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-        <p className="text-sm text-rose-600">Failed to load this event.</p>
+        <p role="alert" className="text-sm text-rose-600">Failed to load this event.</p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate("/app/events")}>
             Back to events
@@ -258,16 +365,33 @@ export default function EventDetailPage() {
           </div>
 
           <Card className="border-csit-border bg-white">
-            <div className="border-b border-csit-border px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-csit-border px-4 py-3">
               <h2 className="text-sm font-semibold text-csit-text">
                 Attendees ({attendances.length})
               </h2>
+              {canCancel && isUpcoming ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCancelDialogOpen(true)}
+                  disabled={selectedIds.size === 0}
+                  className="border-rose-300 text-rose-600 hover:bg-rose-50"
+                >
+                  <UserMinus />
+                  Cancel selected ({selectedIds.size})
+                </Button>
+              ) : null}
             </div>
             <AttendeesTable
               attendances={attendances}
               isLoading={attendancesLoading}
               error={attendancesError}
               onRetry={reloadAttendances}
+              showSelection={canCancel && isUpcoming}
+              selectedIds={selectedIds}
+              onToggle={toggleSelection}
+              onToggleAll={toggleAll}
             />
           </Card>
         </div>
@@ -286,6 +410,67 @@ export default function EventDetailPage() {
           <MetaRow label="Last updated" value={formatDate(event.updated_at)} />
         </Card>
       </div>
+
+      <Dialog
+        open={cancelDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !isCancelling) setCancelDialogOpen(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel selected registrations</DialogTitle>
+            <DialogDescription>
+              You are about to cancel{" "}
+              <span className="font-medium text-foreground">{selectedIds.size}</span>{" "}
+              registration(s) for{" "}
+              <span className="font-medium text-foreground">{event.title}</span>.
+              Members will be notified by email, and completed payments will be
+              refunded.
+            </DialogDescription>
+          </DialogHeader>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-csit-text-muted">
+              Reason (optional)
+            </span>
+            <Textarea
+              value={cancelReason}
+              onChange={(event) => setCancelReason(event.target.value)}
+              placeholder="Optional reason shown to affected members"
+              rows={3}
+            />
+          </label>
+
+          {cancelError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+            >
+              {cancelError}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCancelDialogOpen(false)}
+              disabled={isCancelling}
+            >
+              Keep registrations
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={isCancelling}
+            >
+              {isCancelling ? "Cancelling…" : "Cancel registrations"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

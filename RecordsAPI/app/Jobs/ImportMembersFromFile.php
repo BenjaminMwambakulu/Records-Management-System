@@ -10,6 +10,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +29,16 @@ class ImportMembersFromFile implements ShouldQueue
     public int $timeout = 300;
 
     public function __construct(public MemberImport $import) {}
+
+    /**
+     * @return array<int, \Illuminate\Contracts\Queue\ShouldQueue>
+     */
+    public function middleware(): array
+    {
+        return [
+            (new WithoutOverlapping('member-import-'.$this->import->id))->dontRelease(),
+        ];
+    }
 
     public function handle(): void
     {

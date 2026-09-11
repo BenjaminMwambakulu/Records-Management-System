@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Enums\PaymentStatus;
+use App\Jobs\SendRegistrationCancelledJob;
 use App\Models\Attendance;
 use App\Models\Event;
+use App\Models\Payment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class EventService
@@ -136,6 +140,47 @@ class EventService
         $user = auth('logto')->user();
 
         return (bool) $event->attendances()->where('user_id', $user->id)->delete();
+    }
+
+    /**
+     * @param  array<int, int>  $userIds
+     */
+    public function cancelRegistrations(Event $event, array $userIds, ?string $reason): int
+    {
+        return DB::transaction(function () use ($event, $userIds, $reason): int {
+            $attendees = $event->attendances()
+                ->with('user')
+                ->whereIn('user_id', $userIds)
+                ->get();
+
+            $attendees->each(function (Attendance $attendance) use ($event, $reason): void {
+                $attendance->delete();
+
+                Payment::query()
+                    ->where('payable_type', $event->getMorphClass())
+                    ->where('payable_id', $event->id)
+                    ->where('user_id', $attendance->user_id)
+                    ->where('status', PaymentStatus::COMPLETED)
+                    ->update(['status' => PaymentStatus::REFUNDED]);
+
+                dispatch(new SendRegistrationCancelledJob(
+                    $attendance->user,
+                    $event,
+                    $reason,
+                ));
+            });
+
+            activity()
+                ->performedOn($event)
+                ->causedBy(auth('logto')->user())
+                ->withProperties([
+                    'cancelled_user_ids' => $attendees->pluck('user_id')->all(),
+                    'reason' => $reason,
+                ])
+                ->log('Bulk registration cancellation');
+
+            return $attendees->count();
+        });
     }
 
     protected function generateUniqueSlug(string $title): string

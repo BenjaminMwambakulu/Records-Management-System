@@ -10,10 +10,17 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class CreateFinancialRecordFromPayment implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 30;
 
     public function __construct(
         public Payment $payment,
@@ -26,6 +33,10 @@ class CreateFinancialRecordFromPayment implements ShouldQueue
         $this->payment->load('payable', 'user');
 
         if ($this->payment->status !== PaymentStatus::COMPLETED) {
+            return;
+        }
+
+        if (FinancialRecord::where('payment_id', $this->payment->id)->exists()) {
             return;
         }
 
@@ -45,6 +56,15 @@ class CreateFinancialRecordFromPayment implements ShouldQueue
             'category_id' => $category?->id,
             'transaction_date' => $this->payment->paid_at?->toDateString() ?? now()->toDateString(),
             'recorded_by' => $this->payment->user_id,
+            'payment_id' => $this->payment->id,
+        ]);
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        Log::critical('Failed to create financial record from payment', [
+            'payment_id' => $this->payment->id,
+            'error' => $e->getMessage(),
         ]);
     }
 

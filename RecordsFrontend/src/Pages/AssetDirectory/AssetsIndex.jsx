@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Eye,
   Package,
   Pencil,
   Plus,
@@ -29,8 +28,11 @@ import SummaryCard from "@/components/ui/SummaryCard";
 import { useAuth } from "@/Context/AuthContext";
 import { isAssetManager } from "@/lib/roles";
 import { api } from "@/APIClients/APIClient";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 import useAssetsDirectory from "@/hooks/useAssetsDirectory";
-import AssetFormDialog, { extractErrorMessage } from "./AssetFormDialog";
+import { useFormErrors } from "@/hooks/useFormErrors";
+import AssetFormDialog from "./AssetFormDialog";
 import PermissionGate from "@/components/PermissionGate";
 
 function formatDate(value) {
@@ -187,7 +189,6 @@ export default function AssetsIndex() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -203,31 +204,72 @@ export default function AssetsIndex() {
   const [borrowerId, setBorrowerId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState(null);
+  const [membersReload, setMembersReload] = useState(0);
+
+  const {
+    fieldErrors,
+    formError,
+    applyApiError,
+    clear: clearFormErrors,
+    clearField,
+    fieldProps,
+  } = useFormErrors();
+
+  useEffect(() => {
+    if (!checkoutTarget) return;
+    let cancelled = false;
+    const fetchMembers = async () => {
+      try {
+        const response = await api.get("/v1/members");
+        if (cancelled) return;
+        const data = response?.data;
+        setMembers(Array.isArray(data) ? data : data?.data ?? []);
+        setMembersError(null);
+      } catch (err) {
+        if (cancelled) return;
+        const message = extractErrorMessage(err);
+        setMembers([]);
+        setMembersError(message);
+        notify.error("Failed to load members", message);
+      } finally {
+        if (!cancelled) setMembersLoading(false);
+      }
+    };
+    fetchMembers();
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutTarget, membersReload]);
 
   const openCreate = () => {
+    clearFormErrors();
     setEditingAsset(null);
-    setSubmitError(null);
     setFormOpen(true);
   };
 
   const openEdit = (asset) => {
+    clearFormErrors();
     setEditingAsset(asset);
-    setSubmitError(null);
     setFormOpen(true);
   };
 
   const handleSubmit = async (data) => {
     setIsSubmitting(true);
-    setSubmitError(null);
+    clearFormErrors();
     try {
       if (editingAsset) {
         await updateAsset(editingAsset.id, data);
+        notify.success("Asset updated", `"${data.name}" was updated.`);
       } else {
         await createAsset(data);
+        notify.success("Asset created", `"${data.name}" was created.`);
       }
       setFormOpen(false);
     } catch (err) {
-      setSubmitError(extractErrorMessage(err));
+      applyApiError(err);
+      if (!isValidationError(err)) notify.error("Save failed", extractErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -239,8 +281,11 @@ export default function AssetsIndex() {
     try {
       await deleteAsset(deleteTarget.id);
       setDeleteTarget(null);
+      notify.success("Asset retired", `"${deleteTarget.name}" was retired.`);
     } catch (err) {
-      setDeleteError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setDeleteError(message);
+      notify.error("Retire failed", message);
     } finally {
       setIsDeleting(false);
     }
@@ -252,26 +297,15 @@ export default function AssetsIndex() {
     try {
       await returnAsset(returnTarget.id);
       setReturnTarget(null);
+      notify.success("Asset returned", `"${returnTarget.name}" is available again.`);
     } catch (err) {
-      setReturnError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setReturnError(message);
+      notify.error("Return failed", message);
     } finally {
       setIsReturning(false);
     }
   };
-
-  useEffect(() => {
-    if (!checkoutTarget) return;
-    const fetchMembers = async () => {
-      try {
-        const response = await api.get("/v1/members");
-        const data = response?.data;
-        setMembers(Array.isArray(data) ? data : data?.data ?? []);
-      } catch {
-        setMembers([]);
-      }
-    };
-    fetchMembers();
-  }, [checkoutTarget]);
 
   const handleCheckout = async () => {
     setIsCheckingOut(true);
@@ -284,8 +318,11 @@ export default function AssetsIndex() {
       setCheckoutTarget(null);
       setBorrowerId("");
       setDueDate("");
+      notify.success("Asset checked out", `"${checkoutTarget.name}" was checked out.`);
     } catch (err) {
-      setCheckoutError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setCheckoutError(message);
+      notify.error("Checkout failed", message);
     } finally {
       setIsCheckingOut(false);
     }
@@ -446,6 +483,8 @@ export default function AssetsIndex() {
                       onCheckout={(a) => {
                         setCheckoutError(null);
                         setBorrowerId("");
+                        setMembers([]);
+                        setMembersLoading(true);
                         const tomorrow = new Date();
                         tomorrow.setDate(tomorrow.getDate() + 7);
                         setDueDate(tomorrow.toISOString().split("T")[0]);
@@ -511,7 +550,10 @@ export default function AssetsIndex() {
           asset={editingAsset}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
-          error={submitError}
+          error={formError}
+          fieldErrors={fieldErrors}
+          onFieldChange={clearField}
+          fieldProps={fieldProps}
         />
 
         {/* Delete Confirmation Dialog */}
@@ -534,7 +576,10 @@ export default function AssetsIndex() {
             </DialogHeader>
 
             {deleteError && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+              >
                 {deleteError}
               </div>
             )}
@@ -580,7 +625,10 @@ export default function AssetsIndex() {
             </DialogHeader>
 
             {returnError && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+              >
                 {returnError}
               </div>
             )}
@@ -627,18 +675,46 @@ export default function AssetsIndex() {
             <div className="flex flex-col gap-3">
               <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
                 Borrower
-                <select
-                  value={borrowerId}
-                  onChange={(event) => setBorrowerId(event.target.value)}
-                  className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <option value="">Select a member</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.full_name ?? member.name ?? `Member #${member.id}`}
-                    </option>
-                  ))}
-                </select>
+                {membersLoading ? (
+                  <div className="flex h-8 items-center rounded-lg border border-input px-2.5 text-sm text-csit-text-muted">
+                    Loading members…
+                  </div>
+                ) : membersError ? (
+                  <div
+                    role="alert"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+                  >
+                    <span>Could not load members.</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={membersLoading}
+                      onClick={() => {
+                        setMembers([]);
+                        setMembersLoading(true);
+                        setMembersReload((current) => current + 1);
+                      }}
+                      className="border-rose-300 text-rose-600 hover:bg-rose-100"
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : (
+                  <select
+                    value={borrowerId}
+                    onChange={(event) => setBorrowerId(event.target.value)}
+                    disabled={isCheckingOut}
+                    className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <option value="">Select a member</option>
+                    {members.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.full_name ?? member.name ?? `Member #${member.id}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </label>
               <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
                 Due date
@@ -651,7 +727,10 @@ export default function AssetsIndex() {
             </div>
 
             {checkoutError && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+              >
                 {checkoutError}
               </div>
             )}

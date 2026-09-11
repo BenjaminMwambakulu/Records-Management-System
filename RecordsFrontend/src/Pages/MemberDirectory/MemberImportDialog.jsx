@@ -12,9 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { extractErrorMessage } from "./MemberFormDialog";
+import { extractErrorMessage } from "@/lib/errors";
+import { notify } from "@/lib/toast";
 
 const DONE_STATUSES = ["completed", "failed"];
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 60;
 
 function isDone(status) {
   return DONE_STATUSES.includes(status);
@@ -30,6 +33,7 @@ export default function MemberImportDialog({
   const [processingId, setProcessingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [timedOut, setTimedOut] = useState(false);
   const onImportedRef = useRef(onImported);
 
   useEffect(() => {
@@ -39,8 +43,11 @@ export default function MemberImportDialog({
   useEffect(() => {
     if (!processingId) return;
     let cancelled = false;
+    let attempt = 0;
+    let timer = null;
 
     const poll = async () => {
+      attempt += 1;
       try {
         const response = await api.get(`/v1/members/imports/${processingId}`);
         if (cancelled) return;
@@ -48,19 +55,34 @@ export default function MemberImportDialog({
         if (isDone(response.data.status)) {
           setProcessingId(null);
           if (response.data.status === "completed") {
+            notify.success(
+              "Import complete",
+              `${response.data.created_count ?? 0} members imported`
+            );
             onImportedRef.current?.();
+          } else {
+            notify.error(
+              "Import failed",
+              response.data.error_message ??
+                "Some rows could not be imported. Review the error rows and try again."
+            );
           }
+        } else if (attempt >= MAX_POLL_ATTEMPTS) {
+          setProcessingId(null);
+          setTimedOut(true);
+          setError("The import did not finish in time and was stopped. You can try again.");
         }
       } catch (err) {
         if (!cancelled) {
-          setError(extractErrorMessage(err));
           setProcessingId(null);
+          setError(extractErrorMessage(err));
+          notify.error("Import failed", extractErrorMessage(err));
         }
       }
     };
 
     poll();
-    const timer = setInterval(poll, 2500);
+    timer = setInterval(poll, POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
@@ -73,6 +95,7 @@ export default function MemberImportDialog({
     setActiveImport(null);
     setProcessingId(null);
     setError(null);
+    setTimedOut(false);
   };
 
   const handleClose = () => {
@@ -185,7 +208,10 @@ export default function MemberImportDialog({
             </p>
 
             {error && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+              <div
+                role="alert"
+                className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+              >
                 {error}
               </div>
             )}
@@ -205,6 +231,15 @@ export default function MemberImportDialog({
               </div>
             ) : (
               <>
+                {!importing && error && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+                  >
+                    {error}
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-600">
                     {activeImport.created_count ?? 0} added
@@ -218,7 +253,10 @@ export default function MemberImportDialog({
                 </div>
 
                 {activeImport.status === "failed" && (
-                  <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600">
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs text-rose-600"
+                  >
                     Import failed: {activeImport.error_message ?? "Unknown error"}
                   </div>
                 )}
@@ -258,9 +296,23 @@ export default function MemberImportDialog({
               </Button>
             </>
           ) : (
-            <Button type="button" onClick={handleClose} disabled={importing}>
-              {importing ? "Importing…" : "Done"}
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={importing}
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                onClick={timedOut ? reset : handleClose}
+                disabled={importing}
+              >
+                {importing ? "Importing…" : timedOut ? "Try again" : "Done"}
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>

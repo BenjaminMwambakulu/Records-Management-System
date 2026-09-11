@@ -4,6 +4,7 @@ namespace App\Auth;
 
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -70,7 +71,12 @@ class JwtVerifier
     protected function jwks(): array
     {
         return Cache::remember(self::CACHE_KEY, now()->addHour(), function (): array {
-            $response = Http::get($this->jwksUrl());
+            $response = $this->fetchJwks();
+
+            if ($response->failed()) {
+                Cache::forget(self::CACHE_KEY);
+                $response = $this->fetchJwks();
+            }
 
             if ($response->failed()) {
                 throw new JwtVerificationException('Failed to fetch the Logto JWKS.');
@@ -78,6 +84,13 @@ class JwtVerifier
 
             return $response->json();
         });
+    }
+
+    protected function fetchJwks(): Response
+    {
+        return Http::timeout(5)
+            ->connectTimeout(5)
+            ->get($this->jwksUrl());
     }
 
     /**

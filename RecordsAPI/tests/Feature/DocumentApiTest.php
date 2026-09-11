@@ -307,6 +307,35 @@ test('members only see public documents in the list', function () {
         ->assertJsonPath('data.0.title', 'Public Doc');
 });
 
+test('unauthenticated guests only see public documents in the list', function () {
+    Storage::fake('public');
+
+    $owner = User::factory()->create(['logto_id' => 'logto-owner']);
+
+    $public = Document::factory()->create(['title' => 'Public Constitution', 'is_public' => true]);
+    $public->versions()->create(['version_number' => '1', 'uploaded_by' => $owner->id])
+        ->addMedia(UploadedFile::fake()->create('constitution.pdf', 100))->toMediaCollection('file');
+
+    Document::factory()->create(['title' => 'Private Minutes', 'is_public' => false]);
+
+    $this->getJson('/api/v1/documents')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.title', 'Public Constitution');
+});
+
+test('unauthenticated guests cannot view a private document', function () {
+    Storage::fake('public');
+
+    $owner = User::factory()->create(['logto_id' => 'logto-owner']);
+    $private = Document::factory()->create(['title' => 'Private Minutes', 'is_public' => false]);
+    $private->versions()->create(['version_number' => '1', 'uploaded_by' => $owner->id])
+        ->addMedia(UploadedFile::fake()->create('minutes.pdf', 100))->toMediaCollection('file');
+
+    $this->getJson("/api/v1/documents/{$private->id}")->assertNotFound();
+    $this->getJson("/api/v1/documents/{$private->id}/versions")->assertNotFound();
+});
+
 test('members cannot view private documents', function () {
     Storage::fake('public');
 
@@ -436,6 +465,26 @@ test('private document files are stored privately and served via a signed url', 
         ->and($fileUrl)->toContain('token');
 
     $this->get($fileUrl)->assertOk()->assertHeader('content-type', 'application/pdf');
+
+    $expired = app(DocumentFileUrl::class)->make($version->id, now()->subMinute());
+
+    $this->get($expired)->assertStatus(403);
+});
+
+test('signed document file urls are downloadable without a bearer token', function () {
+    Storage::fake('public');
+    Storage::fake('local');
+
+    $admin = User::factory()->create(['logto_id' => 'logto-admin']);
+    $admin->syncRoles(logtoAdminRole());
+
+    $document = Document::factory()->create(['title' => 'Fee Structure', 'is_public' => false]);
+    $version = $document->versions()->create(['version_number' => '1', 'uploaded_by' => $admin->id]);
+    $version->addMedia(UploadedFile::fake()->create('fee-structure.pdf', 100))->toMediaCollection('file', 'local');
+
+    $url = app(DocumentFileUrl::class)->make($version->id);
+
+    $this->get($url)->assertOk()->assertHeader('content-type', 'application/pdf');
 
     $expired = app(DocumentFileUrl::class)->make($version->id, now()->subMinute());
 

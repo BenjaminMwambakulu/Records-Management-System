@@ -29,7 +29,10 @@ import useMembersDirectory, {
   ACADEMIC_TRACK_OPTIONS,
   MEMBER_ROLE_OPTIONS,
 } from "@/hooks/useMembersDirectory";
-import MemberFormDialog, { extractErrorMessage } from "./MemberFormDialog";
+import { useFormErrors } from "@/hooks/useFormErrors";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
+import MemberFormDialog from "./MemberFormDialog";
 import MemberImportDialog from "./MemberImportDialog";
 import PermissionGate from "@/components/PermissionGate";
 import MemberViewDialog from "@/components/MemberViewDialog";
@@ -197,7 +200,8 @@ export default function MembersIndex() {
   const [importOpen, setImportOpen] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
+  const { fieldErrors, formError, applyApiError, clear, clearField, fieldProps } =
+    useFormErrors();
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -207,28 +211,31 @@ export default function MembersIndex() {
 
   const openCreate = () => {
     setEditingMember(null);
-    setSubmitError(null);
+    clear();
     setFormOpen(true);
   };
 
   const openEdit = (member) => {
     setEditingMember(member);
-    setSubmitError(null);
+    clear();
     setFormOpen(true);
   };
 
   const handleSubmit = async (data) => {
     setIsSubmitting(true);
-    setSubmitError(null);
+    clear();
     try {
       if (editingMember) {
         await updateMember(editingMember.id, data);
+        notify.success("Member updated", "The member's details were saved.");
       } else {
         await createMember(data);
+        notify.success("Member added", `${data.first_name} was added to the directory.`);
       }
       setFormOpen(false);
     } catch (err) {
-      setSubmitError(extractErrorMessage(err));
+      applyApiError(err);
+      if (!isValidationError(err)) notify.error("Save failed", extractErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -239,9 +246,11 @@ export default function MembersIndex() {
     setDeleteError(null);
     try {
       await deleteMember(deleteTarget.id);
+      notify.success("Member deleted", `${deleteTarget.full_name} was removed from the directory.`);
       setDeleteTarget(null);
     } catch (err) {
       setDeleteError(extractErrorMessage(err));
+      notify.error("Delete failed", extractErrorMessage(err));
     } finally {
       setIsDeleting(false);
     }
@@ -304,7 +313,10 @@ export default function MembersIndex() {
           </div>
 
           {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600">
+            <div
+              role="alert"
+              className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600"
+            >
               <div>Failed to load members. Please try again.</div>
               <Button
                 type="button"
@@ -408,7 +420,11 @@ export default function MembersIndex() {
           member={editingMember}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
-          error={submitError}
+          error={formError}
+          fieldErrors={fieldErrors}
+          fieldProps={fieldProps}
+          onFieldChange={clearField}
+          clear={clear}
         />
 
         <MemberViewDialog

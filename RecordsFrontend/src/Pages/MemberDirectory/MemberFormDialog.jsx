@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,13 +14,17 @@ import {
   MEMBER_ROLE_OPTIONS,
 } from "@/hooks/useMembersDirectory";
 
-export function extractErrorMessage(err) {
-  const bodyErrors = err?.body?.errors;
-  if (bodyErrors && typeof bodyErrors === "object") {
-    const messages = Object.values(bodyErrors).flat().slice(0, 3);
-    if (messages.length) return messages.join(". ");
-  }
-  return err?.message || "Something went wrong. Please try again.";
+function FieldError({ errors, name }) {
+  if (!errors?.[name]?.length) return null;
+  return (
+    <span
+      id={`${name}-error`}
+      className="text-xs text-destructive"
+      role="alert"
+    >
+      {errors[name][0]}
+    </span>
+  );
 }
 
 export default function MemberFormDialog({
@@ -30,8 +34,13 @@ export default function MemberFormDialog({
   onSubmit,
   isSubmitting,
   error,
+  fieldErrors,
+  fieldProps,
+  onFieldChange,
+  clear,
 }) {
   const isEdit = Boolean(member);
+  const clearRef = useRef(clear);
 
   const [form, setForm] = useState({
     first_name: "",
@@ -46,7 +55,12 @@ export default function MemberFormDialog({
   });
 
   useEffect(() => {
+    clearRef.current = clear;
+  });
+
+  useEffect(() => {
     if (!open) return;
+    clearRef.current?.();
     setForm({
       first_name: member?.first_name ?? "",
       last_name: member?.last_name ?? "",
@@ -64,10 +78,12 @@ export default function MemberFormDialog({
   }, [open, member]);
 
   const updateField = (field, value) => {
+    onFieldChange?.(field);
     setForm((current) => ({ ...current, [field]: value }));
   };
 
   const toggleRole = (role) => {
+    onFieldChange?.("roles");
     setForm((current) => ({
       ...current,
       roles: current.roles.includes(role)
@@ -119,18 +135,22 @@ export default function MemberFormDialog({
               <Input
                 required
                 value={form.first_name}
+                {...fieldProps("first_name")}
                 onChange={(event) => updateField("first_name", event.target.value)}
                 placeholder="John"
               />
+              <FieldError errors={fieldErrors} name="first_name" />
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Last name
               <Input
                 required
                 value={form.last_name}
+                {...fieldProps("last_name")}
                 onChange={(event) => updateField("last_name", event.target.value)}
                 placeholder="Doe"
               />
+              <FieldError errors={fieldErrors} name="last_name" />
             </label>
           </div>
 
@@ -140,9 +160,11 @@ export default function MemberFormDialog({
               <Input
                 required
                 value={form.student_id}
+                {...fieldProps("student_id")}
                 onChange={(event) => updateField("student_id", event.target.value)}
                 placeholder="BIT-000-00"
               />
+              <FieldError errors={fieldErrors} name="student_id" />
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Email
@@ -150,9 +172,11 @@ export default function MemberFormDialog({
                 required
                 type="email"
                 value={form.email}
+                {...fieldProps("email")}
                 onChange={(event) => updateField("email", event.target.value)}
                 placeholder="name@must.ac.mw"
               />
+              <FieldError errors={fieldErrors} name="email" />
             </label>
           </div>
 
@@ -161,10 +185,15 @@ export default function MemberFormDialog({
               Academic track
               <select
                 value={form.academic_track}
+                {...fieldProps("academic_track")}
                 onChange={(event) =>
                   updateField("academic_track", event.target.value)
                 }
-                className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className={`h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${
+                  fieldErrors?.academic_track?.length
+                    ? "border-destructive"
+                    : ""
+                }`}
               >
                 <option value="">Select track</option>
                 {ACADEMIC_TRACK_OPTIONS.map((option) => (
@@ -173,6 +202,7 @@ export default function MemberFormDialog({
                   </option>
                 ))}
               </select>
+              <FieldError errors={fieldErrors} name="academic_track" />
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Enrolled year
@@ -181,16 +211,21 @@ export default function MemberFormDialog({
                 min="1950"
                 max="2200"
                 value={form.enrolled_year}
+                {...fieldProps("enrolled_year")}
                 onChange={(event) => updateField("enrolled_year", event.target.value)}
                 placeholder="e.g. 2024"
               />
+              <FieldError errors={fieldErrors} name="enrolled_year" />
             </label>
             <label className="flex flex-col gap-1.5 text-xs font-medium text-csit-text-muted">
               Year of study
               <select
                 value={form.study_year}
+                {...fieldProps("study_year")}
                 onChange={(event) => updateField("study_year", event.target.value)}
-                className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className={`h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${
+                  fieldErrors?.study_year?.length ? "border-destructive" : ""
+                }`}
               >
                 <option value="">Select year</option>
                 {[1, 2, 3, 4].map((year) => (
@@ -199,6 +234,7 @@ export default function MemberFormDialog({
                   </option>
                 ))}
               </select>
+              <FieldError errors={fieldErrors} name="study_year" />
             </label>
           </div>
 
@@ -206,9 +242,11 @@ export default function MemberFormDialog({
             Skills
             <Input
               value={form.skills}
+              {...fieldProps("skills")}
               onChange={(event) => updateField("skills", event.target.value)}
               placeholder="Comma separated, e.g. Python, UI Design"
             />
+            <FieldError errors={fieldErrors} name="skills" />
           </label>
 
           <fieldset className="flex flex-col gap-2">
@@ -231,6 +269,7 @@ export default function MemberFormDialog({
                 </label>
               ))}
             </div>
+            <FieldError errors={fieldErrors} name="roles" />
           </fieldset>
         </form>
 

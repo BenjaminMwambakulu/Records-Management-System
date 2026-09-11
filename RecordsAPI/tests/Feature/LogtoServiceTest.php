@@ -48,3 +48,20 @@ test('getUser returns an empty array when the management API rejects', function 
 
     expect(app(LogtoService::class)->getUser('user-1'))->toBe([]);
 });
+
+test('findUserByEmail returns null and logs the management API failure', function () {
+    Illuminate\Support\Facades\Log::spy();
+
+    Http::fake([
+        'https://logto-m2m.test/oidc/token' => Http::response(['access_token' => 'm2m-token'], 200),
+        'https://logto-m2m.test/api/users*' => Http::response('Service Unavailable', 503),
+    ]);
+
+    $result = app(LogtoService::class)->findUserByEmail('alice@example.com');
+
+    expect($result)->toBeNull();
+
+    Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+        ->once()
+        ->withArgs(fn ($message) => str_contains((string) $message, 'Logto'));
+});

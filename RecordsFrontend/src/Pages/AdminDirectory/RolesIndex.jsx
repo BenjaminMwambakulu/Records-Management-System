@@ -6,7 +6,9 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { extractErrorMessage } from "@/lib/errors";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
+import { useFormErrors } from "@/hooks/useFormErrors";
 import useRolesDirectory from "@/hooks/useRolesDirectory";
 import RoleFormDialog from "./RoleFormDialog";
 import DeleteRoleDialog from "./DeleteRoleDialog";
@@ -30,9 +32,35 @@ function TableSkeleton() {
 
 export default function RolesIndex() {
   const navigate = useNavigate();
-  const { roles, isLoading, error, createRole, deleteRole, isSubmitting } = useRolesDirectory();
+  const { roles, isLoading, error, fetchRoles, createRole, deleteRole, isSubmitting } = useRolesDirectory();
+  const createForm = useFormErrors();
+  const deleteForm = useFormErrors();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const handleCreate = async (data) => {
+    createForm.clear();
+    try {
+      await createRole(data);
+      setCreateOpen(false);
+      notify.success("Role created", `Role "${data.name}" was created.`);
+    } catch (err) {
+      createForm.applyApiError(err);
+      if (!isValidationError(err)) notify.error("Could not create role", extractErrorMessage(err));
+    }
+  };
+
+  const handleDelete = async (id) => {
+    deleteForm.clear();
+    try {
+      await deleteRole(id);
+      setDeleteTarget(null);
+      notify.success("Role deleted", "Role was deleted.");
+    } catch (err) {
+      deleteForm.applyApiError(err);
+      if (!isValidationError(err)) notify.error("Could not delete role", extractErrorMessage(err));
+    }
+  };
 
   return (
     <PermissionGate permission="roles.manage">
@@ -50,8 +78,11 @@ export default function RolesIndex() {
 
       <Card className="border-csit-border bg-white">
         {error ? (
-          <div className="flex flex-col items-center gap-3 py-12">
+          <div className="flex flex-col items-center gap-3 py-12" role="alert">
             <p className="text-sm text-rose-600">{extractErrorMessage(error)}</p>
+            <Button type="button" variant="outline" size="sm" onClick={fetchRoles}>
+              Retry
+            </Button>
           </div>
         ) : (
           <Table>
@@ -126,17 +157,29 @@ export default function RolesIndex() {
 
       <RoleFormDialog
         open={createOpen}
-        onOpenChange={setCreateOpen}
-        onSubmit={createRole}
+        onOpenChange={(open) => {
+          if (!open && isSubmitting) return;
+          setCreateOpen(open);
+          if (open) createForm.clear();
+        }}
+        onSubmit={handleCreate}
         isSubmitting={isSubmitting}
+        error={createForm.formError}
+        fieldErrors={createForm.fieldErrors}
+        onFieldChange={createForm.clearField}
+        fieldProps={createForm.fieldProps}
       />
 
       <DeleteRoleDialog
         open={Boolean(deleteTarget)}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open && isSubmitting) return;
+          setDeleteTarget(open ? deleteTarget : null);
+        }}
         role={deleteTarget}
-        onDelete={deleteRole}
+        onDelete={handleDelete}
         isSubmitting={isSubmitting}
+        error={deleteForm.formError}
       />
     </div>
     </PermissionGate>

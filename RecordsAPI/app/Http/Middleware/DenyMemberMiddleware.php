@@ -21,7 +21,21 @@ class DenyMemberMiddleware
             ], 401);
         }
 
-        $hasMemberRole = $user->hasRole('member');
+        // Superadmins and admins are never restricted by member denial
+        if ($user->hasAnyRole(['superadmin', 'admin'], 'logto')) {
+            return $next($request);
+        }
+
+        // Allow any user who has an elevated role beyond regular member/alumni
+        $hasElevatedRole = $user->roles()
+            ->whereNotIn('name', ['member', 'alumni'])
+            ->exists();
+
+        if ($hasElevatedRole) {
+            return $next($request);
+        }
+
+        $hasMemberRole = $user->hasRole('member', 'logto');
 
         if ($hasMemberRole) {
             return response()->json([

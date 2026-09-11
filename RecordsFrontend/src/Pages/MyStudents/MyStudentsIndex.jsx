@@ -26,7 +26,10 @@ import {
 } from "@/components/ui/dialog";
 import useYearRepStudents from "@/hooks/useYearRepStudents";
 import { ACADEMIC_TRACK_OPTIONS } from "@/hooks/useMembersDirectory";
-import StudentFormDialog, { extractErrorMessage } from "./StudentFormDialog";
+import { useFormErrors } from "@/hooks/useFormErrors";
+import { extractErrorMessage, isValidationError } from "@/lib/errors";
+import { notify } from "@/lib/toast";
+import StudentFormDialog from "./StudentFormDialog";
 import PermissionGate from "@/components/PermissionGate";
 import MemberViewDialog from "@/components/MemberViewDialog";
 
@@ -96,7 +99,8 @@ export default function MyStudentsIndex() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
+  const { fieldErrors, formError, applyApiError, clear, clearField, fieldProps } =
+    useFormErrors();
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -106,28 +110,31 @@ export default function MyStudentsIndex() {
 
   const openCreate = () => {
     setEditingStudent(null);
-    setSubmitError(null);
+    clear();
     setFormOpen(true);
   };
 
   const openEdit = (student) => {
     setEditingStudent(student);
-    setSubmitError(null);
+    clear();
     setFormOpen(true);
   };
 
   const handleSubmit = async (data) => {
     setIsSubmitting(true);
-    setSubmitError(null);
+    clear();
     try {
       if (editingStudent) {
         await updateStudent(editingStudent.id, data);
+        notify.success("Student updated", "The student's details were saved.");
       } else {
         await createStudent(data);
+        notify.success("Student added", `${data.first_name} was added to your students.`);
       }
       setFormOpen(false);
     } catch (err) {
-      setSubmitError(extractErrorMessage(err));
+      applyApiError(err);
+      if (!isValidationError(err)) notify.error("Save failed", extractErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -138,9 +145,11 @@ export default function MyStudentsIndex() {
     setDeleteError(null);
     try {
       await deleteStudent(deleteTarget.id);
+      notify.success("Student deleted", `${deleteTarget.full_name} was removed from your students.`);
       setDeleteTarget(null);
     } catch (err) {
       setDeleteError(extractErrorMessage(err));
+      notify.error("Delete failed", extractErrorMessage(err));
     } finally {
       setIsDeleting(false);
     }
@@ -186,7 +195,10 @@ export default function MyStudentsIndex() {
           </div>
 
           {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600">
+            <div
+              role="alert"
+              className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-sm text-rose-600"
+            >
               <div>Failed to load students. Please try again.</div>
               <Button
                 type="button"
@@ -339,7 +351,11 @@ export default function MyStudentsIndex() {
           student={editingStudent}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
-          error={submitError}
+          error={formError}
+          fieldErrors={fieldErrors}
+          fieldProps={fieldProps}
+          onFieldChange={clearField}
+          clear={clear}
         />
 
         <MemberViewDialog

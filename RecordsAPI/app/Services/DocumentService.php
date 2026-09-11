@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class DocumentService
@@ -61,13 +63,24 @@ class DocumentService
      */
     public function create(array $data, UploadedFile $file): Document
     {
-        $document = Document::create(array_merge(['is_public' => false], $data, [
-            'created_by' => auth('logto')->id(),
-        ]));
+        try {
+            return DB::transaction(function () use ($data, $file): Document {
+                $document = Document::create(array_merge(['is_public' => false], $data, [
+                    'created_by' => auth('logto')->id(),
+                ]));
 
-        $this->createVersion($document, $file, null);
+                $this->createVersion($document, $file, null);
 
-        return $document;
+                return $document;
+            });
+        } catch (\Throwable $e) {
+            Log::critical('Failed to create document', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
+        }
     }
 
     /**
@@ -86,25 +99,38 @@ class DocumentService
 
     public function delete(Document $document): void
     {
-        $document->versions()->each(function (DocumentVersion $version): void {
-            $version->clearMediaCollection('file');
-        });
+        DB::transaction(function () use ($document): void {
+            $document->versions()->each(function (DocumentVersion $version): void {
+                $version->clearMediaCollection('file');
+            });
 
-        $document->delete();
+            $document->delete();
+        });
     }
 
     public function createVersion(Document $document, UploadedFile $file, ?string $changeSummary): DocumentVersion
     {
-        $version = DocumentVersion::create([
-            'document_id' => $document->id,
-            'version_number' => $this->nextVersionNumber($document),
-            'change_summary' => $changeSummary,
-            'uploaded_by' => auth('logto')->id(),
-        ]);
+        return DB::transaction(function () use ($document, $file, $changeSummary): DocumentVersion {
+            $version = DocumentVersion::create([
+                'document_id' => $document->id,
+                'version_number' => $this->nextVersionNumber($document),
+                'change_summary' => $changeSummary,
+                'uploaded_by' => auth('logto')->id(),
+            ]);
 
-        $version->addMedia($file)->toMediaCollection('file', $this->mediaDiskFor($document));
+            try {
+                $version->addMedia($file)->toMediaCollection('file', $this->mediaDiskFor($document));
+            } catch (\Throwable $e) {
+                Log::critical('Failed to store document file', [
+                    'document_id' => $document->id,
+                    'error' => $e->getMessage(),
+                ]);
 
-        return $version;
+                throw $e;
+            }
+
+            return $version;
+        });
     }
 
     public function versions(Document $document): Collection

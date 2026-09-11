@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { extractErrorMessage } from "@/lib/errors";
 
 export default function DeleteRoleDialog({
   open,
@@ -16,17 +14,11 @@ export default function DeleteRoleDialog({
   role,
   onDelete,
   isSubmitting,
+  error,
 }) {
-  const [error, setError] = useState(null);
-
-  const handleDelete = async () => {
-    setError(null);
-    try {
-      await onDelete(role.id);
-      onOpenChange(false);
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    }
+  const handleDelete = () => {
+    if (!role) return;
+    onDelete(role.id);
   };
 
   return (

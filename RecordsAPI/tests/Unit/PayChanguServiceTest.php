@@ -55,7 +55,7 @@ class PayChanguServiceTest extends TestCase
         ]);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Invalid amount');
+        $this->expectExceptionMessage('Payment initiation failed. Please try again.');
 
         $this->service->initiate(['amount' => 0]);
     }
@@ -92,7 +92,7 @@ class PayChanguServiceTest extends TestCase
         ]);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Transaction not found');
+        $this->expectExceptionMessage('Payment verification failed. Please try again.');
 
         $this->service->verify('TX-FAILED');
     }

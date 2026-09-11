@@ -20,6 +20,7 @@ class FinancialRecord extends Model
         'transaction_date',
         'category_id',
         'recorded_by',
+        'payment_id',
     ];
 
     protected function casts(): array

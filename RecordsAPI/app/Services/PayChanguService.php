@@ -61,12 +61,16 @@ class PayChanguService
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
             'Content-Type' => 'application/json',
-        ])->post(rtrim($this->baseUrl, '/').'/payment', $payload);
+        ])->timeout(15)->connectTimeout(5)->post(rtrim($this->baseUrl, '/').'/payment', $payload);
 
         $result = $response->json();
 
         if ($response->failed() || ($result['status'] ?? '') !== 'success') {
-            throw new \RuntimeException($result['message'] ?? 'Payment initiation failed');
+            \Log::error('PayChangu initiate failed', [
+                'status' => $response->status(),
+                'response' => $result,
+            ]);
+            throw new \RuntimeException('Payment initiation failed. Please try again.');
         }
 
         return [
@@ -84,12 +88,17 @@ class PayChanguService
     {
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
-        ])->get(rtrim($this->baseUrl, '/')."/verify-payment/{$txRef}");
+        ])->timeout(15)->connectTimeout(5)->get(rtrim($this->baseUrl, '/')."/verify-payment/{$txRef}");
 
         $result = $response->json();
 
         if ($response->failed() || ($result['status'] ?? '') !== 'success') {
-            throw new \RuntimeException($result['message'] ?? 'Payment verification failed');
+            \Log::error('PayChangu verify failed', [
+                'tx_ref' => $txRef,
+                'status' => $response->status(),
+                'response' => $result,
+            ]);
+            throw new \RuntimeException('Payment verification failed. Please try again.');
         }
 
         return $result['data'];
@@ -134,17 +143,17 @@ class PayChanguService
             'Authorization' => 'Bearer '.$this->apiKey,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
-        ])->post($url, $payload);
+        ])->timeout(15)->connectTimeout(5)->post($url, $payload);
 
         $result = $response->json();
         \Log::info('PayChangu mobile money response', ['status' => $response->status(), 'result' => $result]);
 
         if ($response->failed() || ($result['status'] ?? '') !== 'success') {
-            $message = $result['message'] ?? 'Mobile money payment initiation failed';
-            if (is_array($message)) {
-                $message = implode(' ', array_map(fn ($errors) => is_array($errors) ? implode(' ', $errors) : (string) $errors, $message));
-            }
-            throw new \RuntimeException($message);
+            \Log::error('PayChangu mobile money initiate failed', [
+                'status' => $response->status(),
+                'response' => $result,
+            ]);
+            throw new \RuntimeException('Mobile money payment initiation failed. Please try again.');
         }
 
         return [
@@ -165,12 +174,17 @@ class PayChanguService
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
             'Accept' => 'application/json',
-        ])->get(rtrim($this->baseUrl, '/')."/mobile-money/payments/{$chargeId}/verify");
+        ])->timeout(15)->connectTimeout(5)->get(rtrim($this->baseUrl, '/')."/mobile-money/payments/{$chargeId}/verify");
 
         $result = $response->json();
 
         if ($response->failed()) {
-            throw new \RuntimeException($result['message'] ?? 'Mobile money verification failed');
+            \Log::error('PayChangu mobile money verify failed', [
+                'charge_id' => $chargeId,
+                'status' => $response->status(),
+                'response' => $result,
+            ]);
+            throw new \RuntimeException('Mobile money verification failed. Please try again.');
         }
 
         return [

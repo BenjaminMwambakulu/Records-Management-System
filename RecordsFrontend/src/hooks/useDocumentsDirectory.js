@@ -16,8 +16,8 @@ export default function useDocumentsDirectory() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [status, setStatus] = useState("");
+  const [categoryId, setCategoryIdState] = useState("");
+  const [status, setStatusState] = useState("");
   const [page, setPage] = useState(1);
   const [categories, setCategories] = useState([]);
   const [categoriesError, setCategoriesError] = useState(null);
@@ -31,9 +31,15 @@ export default function useDocumentsDirectory() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
+  const setCategoryId = (value) => {
+    setCategoryIdState(value);
     setPage(1);
-  }, [categoryId, status]);
+  };
+
+  const setStatus = (value) => {
+    setStatusState(value);
+    setPage(1);
+  };
 
   const refetch = useCallback(() => {
     cancelledRef.current = false;

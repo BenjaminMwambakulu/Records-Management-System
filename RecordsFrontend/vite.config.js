@@ -13,6 +13,11 @@ export default defineConfig({
         target: 'https://recordsapi.test',
         changeOrigin: true,
         secure: false,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('cookie');
+          });
+        },
       },
     },
   },
