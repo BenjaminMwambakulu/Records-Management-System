@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -92,6 +92,88 @@ function TableSkeleton() {
     </TableBody>
   );
 }
+
+const MemberRow = React.memo(function MemberRow({ member, onView, onEdit, onDelete }) {
+  return (
+    <TableRow>
+      <TableCell className="px-4">
+        <div className="flex items-center gap-2.5">
+          <Avatar>
+            <AvatarFallback>
+              {initialsOf(member.full_name)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="font-medium text-csit-text">
+            {member.full_name}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {member.student_id}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {member.email}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {academicTrackLabel(member.academic_track) ?? "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {member.enrolled_year ?? "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {member.study_year ? `${member.study_year}º` : "—"}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {(member.roles ?? []).length === 0 ? (
+            <span className="text-xs text-csit-text-muted">—</span>
+          ) : (
+            member.roles.map((memberRole) => (
+              <span
+                key={memberRole}
+                className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${roleBadgeStyles[memberRole] ?? "bg-slate-100 text-slate-600"}`}
+              >
+                {roleLabel(memberRole)}
+              </span>
+            ))
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="px-4">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onView(member)}
+            aria-label={`View ${member.full_name}`}
+          >
+            <Eye className="text-csit-text-muted" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onEdit(member)}
+            aria-label={`Edit ${member.full_name}`}
+          >
+            <Pencil className="text-csit-text-muted" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onDelete(member)}
+            aria-label={`Delete ${member.full_name}`}
+            className="hover:bg-rose-50 hover:text-rose-600"
+          >
+            <Trash2 className="text-csit-text-muted" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export default function MembersIndex() {
   const {
@@ -266,86 +348,16 @@ export default function MembersIndex() {
               ) : (
                 <TableBody>
                   {members.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell className="px-4">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar>
-                            <AvatarFallback>
-                              {initialsOf(member.full_name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium text-csit-text">
-                            {member.full_name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {member.student_id}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {member.email}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {academicTrackLabel(member.academic_track) ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {member.enrolled_year ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {member.study_year ? `${member.study_year}º` : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {(member.roles ?? []).length === 0 ? (
-                            <span className="text-xs text-csit-text-muted">—</span>
-                          ) : (
-                            member.roles.map((memberRole) => (
-                              <span
-                                key={memberRole}
-                                className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${roleBadgeStyles[memberRole] ?? "bg-slate-100 text-slate-600"}`}
-                              >
-                                {roleLabel(memberRole)}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setViewMember(member)}
-                            aria-label={`View ${member.full_name}`}
-                          >
-                            <Eye className="text-csit-text-muted" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(member)}
-                            aria-label={`Edit ${member.full_name}`}
-                          >
-                            <Pencil className="text-csit-text-muted" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setDeleteError(null);
-                              setDeleteTarget(member);
-                            }}
-                            aria-label={`Delete ${member.full_name}`}
-                            className="hover:bg-rose-50 hover:text-rose-600"
-                          >
-                            <Trash2 className="text-csit-text-muted" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <MemberRow
+                      key={member.id}
+                      member={member}
+                      onView={setViewMember}
+                      onEdit={openEdit}
+                      onDelete={(m) => {
+                        setDeleteError(null);
+                        setDeleteTarget(m);
+                      }}
+                    />
                   ))}
                 </TableBody>
               )}

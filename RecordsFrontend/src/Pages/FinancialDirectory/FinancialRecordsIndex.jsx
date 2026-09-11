@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -62,6 +62,68 @@ function TableSkeleton() {
     </TableBody>
   );
 }
+
+const FinancialRecordRow = React.memo(function FinancialRecordRow({ record, canManage, onView, onEdit, onDelete }) {
+  return (
+    <TableRow>
+      <TableCell className="px-4">
+        <span className="font-medium text-csit-text">{record.title}</span>
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {record.category?.name ?? "—"}
+      </TableCell>
+      <TableCell>
+        <span className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${typeStyles(record.type)}`}>
+          {record.type}
+        </span>
+      </TableCell>
+      <TableCell className="text-right">
+        <span className={`font-medium ${record.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
+          {record.type === "income" ? "+" : "−"}{formatMoney(record.amount)}
+        </span>
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {formatDate(record.transaction_date)}
+      </TableCell>
+      <TableCell className="px-4">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onView(record)}
+            aria-label={`View ${record.title}`}
+          >
+            <Eye className="text-csit-text-muted" />
+          </Button>
+          {canManage ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onEdit(record)}
+                aria-label={`Edit ${record.title}`}
+              >
+                <Pencil className="text-csit-text-muted" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onDelete(record)}
+                aria-label={`Delete ${record.title}`}
+                className="hover:bg-rose-50 hover:text-rose-600"
+              >
+                <Trash2 className="text-csit-text-muted" />
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export default function FinancialRecordsIndex() {
   const { user } = useAuth();
@@ -296,63 +358,14 @@ export default function FinancialRecordsIndex() {
               ) : (
                 <TableBody>
                   {records.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="px-4">
-                        <span className="font-medium text-csit-text">{record.title}</span>
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {record.category?.name ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${typeStyles(record.type)}`}>
-                          {record.type}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={`font-medium ${record.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
-                          {record.type === "income" ? "+" : "−"}{formatMoney(record.amount)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {formatDate(record.transaction_date)}
-                      </TableCell>
-                      <TableCell className="px-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openView(record)}
-                            aria-label={`View ${record.title}`}
-                          >
-                            <Eye className="text-csit-text-muted" />
-                          </Button>
-                          {canManage ? (
-                            <>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openEdit(record)}
-                                aria-label={`Edit ${record.title}`}
-                              >
-                                <Pencil className="text-csit-text-muted" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setDeleteTarget(record)}
-                                aria-label={`Delete ${record.title}`}
-                                className="hover:bg-rose-50 hover:text-rose-600"
-                              >
-                                <Trash2 className="text-csit-text-muted" />
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <FinancialRecordRow
+                      key={record.id}
+                      record={record}
+                      canManage={canManage}
+                      onView={openView}
+                      onEdit={openEdit}
+                      onDelete={(r) => setDeleteTarget(r)}
+                    />
                   ))}
                 </TableBody>
               )}

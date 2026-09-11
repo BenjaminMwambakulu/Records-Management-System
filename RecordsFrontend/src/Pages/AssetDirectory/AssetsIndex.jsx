@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -69,6 +69,93 @@ function TableSkeleton() {
     </TableBody>
   );
 }
+
+const AssetRow = React.memo(function AssetRow({ asset, canManage, onCheckout, onReturn, onEdit, onDelete }) {
+  return (
+    <TableRow>
+      <TableCell className="px-4">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-csit-primary/10 text-csit-primary">
+            <Package className="size-4" />
+          </span>
+          <span className="font-medium text-csit-text">{asset.name}</span>
+        </div>
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {asset.serial_number ?? "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {asset.category}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {asset.active_loan?.borrower?.full_name ?? "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {formatDate(asset.active_loan?.due_date)}
+      </TableCell>
+      <TableCell>
+        <span
+          className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${statusColor(asset.status)} `}
+        >
+          {asset.status}
+        </span>
+      </TableCell>
+      <TableCell className="px-4">
+        <div className="flex items-center justify-end gap-1">
+          {asset.status === "available" && canManage ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onCheckout(asset)}
+              aria-label={`Check out ${asset.name}`}
+              className="hover:bg-emerald-50 hover:text-emerald-600"
+              title="Check out"
+            >
+              <ArrowUpFromLine className="text-csit-text-muted" />
+            </Button>
+          ) : null}
+          {asset.status === "borrowed" && canManage ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onReturn(asset)}
+              aria-label={`Return ${asset.name}`}
+              className="hover:bg-emerald-50 hover:text-emerald-600"
+              title="Return"
+            >
+              <ArrowDownToLine className="text-csit-text-muted" />
+            </Button>
+          ) : null}
+          {canManage ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onEdit(asset)}
+                aria-label={`Edit ${asset.name}`}
+              >
+                <Pencil className="text-csit-text-muted" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onDelete(asset)}
+                aria-label={`Delete ${asset.name}`}
+                className="hover:bg-rose-50 hover:text-rose-600"
+              >
+                <Trash2 className="text-csit-text-muted" />
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export default function AssetsIndex() {
   const { user } = useAuth();
@@ -352,101 +439,28 @@ export default function AssetsIndex() {
               ) : (
                 <TableBody>
                   {assets.map((asset) => (
-                    <TableRow key={asset.id}>
-                      <TableCell className="px-4">
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-csit-primary/10 text-csit-primary">
-                            <Package className="size-4" />
-                          </span>
-                          <span className="font-medium text-csit-text">{asset.name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {asset.serial_number ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {asset.category}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {asset.active_loan?.borrower?.full_name ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {formatDate(asset.active_loan?.due_date)}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${statusColor(asset.status)} `}
-                        >
-                          {asset.status}
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-4">
-                        <div className="flex items-center justify-end gap-1">
-                          {asset.status === "available" && canManage ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setCheckoutError(null);
-                                setBorrowerId("");
-                                const tomorrow = new Date();
-                                tomorrow.setDate(tomorrow.getDate() + 7);
-                                setDueDate(tomorrow.toISOString().split("T")[0]);
-                                setCheckoutTarget(asset);
-                              }}
-                              aria-label={`Check out ${asset.name}`}
-                              className="hover:bg-emerald-50 hover:text-emerald-600"
-                              title="Check out"
-                            >
-                              <ArrowUpFromLine className="text-csit-text-muted" />
-                            </Button>
-                          ) : null}
-                          {asset.status === "borrowed" && canManage ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setReturnError(null);
-                                setReturnTarget(asset);
-                              }}
-                              aria-label={`Return ${asset.name}`}
-                              className="hover:bg-emerald-50 hover:text-emerald-600"
-                              title="Return"
-                            >
-                              <ArrowDownToLine className="text-csit-text-muted" />
-                            </Button>
-                          ) : null}
-                          {canManage ? (
-                            <>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openEdit(asset)}
-                                aria-label={`Edit ${asset.name}`}
-                              >
-                                <Pencil className="text-csit-text-muted" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setDeleteError(null);
-                                  setDeleteTarget(asset);
-                                }}
-                                aria-label={`Delete ${asset.name}`}
-                                className="hover:bg-rose-50 hover:text-rose-600"
-                              >
-                                <Trash2 className="text-csit-text-muted" />
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <AssetRow
+                      key={asset.id}
+                      asset={asset}
+                      canManage={canManage}
+                      onCheckout={(a) => {
+                        setCheckoutError(null);
+                        setBorrowerId("");
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 7);
+                        setDueDate(tomorrow.toISOString().split("T")[0]);
+                        setCheckoutTarget(a);
+                      }}
+                      onReturn={(a) => {
+                        setReturnError(null);
+                        setReturnTarget(a);
+                      }}
+                      onEdit={openEdit}
+                      onDelete={(a) => {
+                        setDeleteError(null);
+                        setDeleteTarget(a);
+                      }}
+                    />
                   ))}
                 </TableBody>
               )}

@@ -1,27 +1,29 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { LogtoProvider, UserScope } from '@logto/react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './Context/AuthContext';
-import Callback from './Pages/Callback';
-import LoginPage from './Pages/AuthPages/LoginPage';
-import Dashboard from './Pages/Dashboard/Dashboard';
-import MembersIndex from './Pages/MemberDirectory/MembersIndex';
-import DocumentsIndex from './Pages/DocumentDirectory/DocumentsIndex';
-import DocumentDetailPage from './Pages/DocumentDirectory/DocumentDetailPage';
-import EventsIndex from './Pages/EventsDirectory/EventsIndex';
-import EventDetailPage from './Pages/EventsDirectory/EventDetailPage';
-import AssetsIndex from './Pages/AssetDirectory/AssetsIndex';
-import LogsIndex from './Pages/LogsDirectory/LogsIndex';
-import FinancialRecordsIndex from './Pages/FinancialDirectory/FinancialRecordsIndex';
-import RolesIndex from "./Pages/AdminDirectory/RolesIndex";
-import RoleDetailPage from "./Pages/AdminDirectory/RoleDetailPage";
-import LandingPage from './Pages/Landing/LandingPage';
-import PublicEventDetailPage from './Pages/Landing/PublicEventDetailPage';
-import SettingsPage from './Pages/Settings/SettingsPage';
-import MyStudentsIndex from './Pages/MyStudents/MyStudentsIndex';
 import Layout from './Pages/Layout';
 import { canAccessDashboard } from './lib/roles';
 import { hasPermission } from './lib/permissions';
+
+// Lazy-loaded page components
+const Callback = lazy(() => import('./Pages/Callback'));
+const LoginPage = lazy(() => import('./Pages/AuthPages/LoginPage'));
+const Dashboard = lazy(() => import('./Pages/Dashboard/Dashboard'));
+const MembersIndex = lazy(() => import('./Pages/MemberDirectory/MembersIndex'));
+const DocumentsIndex = lazy(() => import('./Pages/DocumentDirectory/DocumentsIndex'));
+const DocumentDetailPage = lazy(() => import('./Pages/DocumentDirectory/DocumentDetailPage'));
+const EventsIndex = lazy(() => import('./Pages/EventsDirectory/EventsIndex'));
+const EventDetailPage = lazy(() => import('./Pages/EventsDirectory/EventDetailPage'));
+const AssetsIndex = lazy(() => import('./Pages/AssetDirectory/AssetsIndex'));
+const LogsIndex = lazy(() => import('./Pages/LogsDirectory/LogsIndex'));
+const FinancialRecordsIndex = lazy(() => import('./Pages/FinancialDirectory/FinancialRecordsIndex'));
+const RolesIndex = lazy(() => import('./Pages/AdminDirectory/RolesIndex'));
+const RoleDetailPage = lazy(() => import('./Pages/AdminDirectory/RoleDetailPage'));
+const LandingPage = lazy(() => import('./Pages/Landing/LandingPage'));
+const PublicEventDetailPage = lazy(() => import('./Pages/Landing/PublicEventDetailPage'));
+const SettingsPage = lazy(() => import('./Pages/Settings/SettingsPage'));
+const MyStudentsIndex = lazy(() => import('./Pages/MyStudents/MyStudentsIndex'));
 
 const config = {
   endpoint: import.meta.env.VITE_LOGTO_ENDPOINT,
@@ -65,6 +67,17 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-csit-surface">
+      <div className="flex flex-col items-center gap-4">
+        <div className="loader" aria-hidden="true" />
+        <p className="text-lg text-csit-text animate-pulse">Loading…</p>
+      </div>
+    </div>
+  );
+}
+
 function YearRepRoute({ children }) {
   const { user } = useAuth();
 
@@ -104,17 +117,17 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/callback" element={<Callback />} />
+            <Route path="/callback" element={<Suspense fallback={<PageLoader />}><Callback /></Suspense>} />
             <Route
               path="/login"
               element={
                 <PublicRoute>
-                  <LoginPage />
+                  <Suspense fallback={<PageLoader />}><LoginPage /></Suspense>
                 </PublicRoute>
               }
             />
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/events/:id" element={<PublicEventDetailPage />} />
+            <Route path="/" element={<Suspense fallback={<PageLoader />}><LandingPage /></Suspense>} />
+            <Route path="/events/:id" element={<Suspense fallback={<PageLoader />}><PublicEventDetailPage /></Suspense>} />
             <Route
               path="/app"
               element={
@@ -123,23 +136,23 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Dashboard />} />
-              <Route path="members" element={<MembersIndex />} />
-              <Route path="my-students" element={<YearRepRoute><MyStudentsIndex /></YearRepRoute>} />
-              <Route path="events" element={<EventsIndex />} />
-              <Route path="events/:id" element={<EventDetailPage />} />
-              <Route path="assets" element={<AssetsIndex />} />
-              <Route path="logs" element={<LogsIndex />} />
-              <Route path="roles" element={<RolesIndex />} />
-              <Route path="roles/:id" element={<RoleDetailPage />} />
-              <Route path="financial-records" element={<FinancialRecordsIndex />} />
-              <Route path="documents" element={<DocumentsIndex />} />
-              <Route path="documents/:id" element={<DocumentDetailPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+              <Route path="members" element={<Suspense fallback={<PageLoader />}><MembersIndex /></Suspense>} />
+              <Route path="my-students" element={<YearRepRoute><Suspense fallback={<PageLoader />}><MyStudentsIndex /></Suspense></YearRepRoute>} />
+              <Route path="events" element={<Suspense fallback={<PageLoader />}><EventsIndex /></Suspense>} />
+              <Route path="events/:id" element={<Suspense fallback={<PageLoader />}><EventDetailPage /></Suspense>} />
+              <Route path="assets" element={<Suspense fallback={<PageLoader />}><AssetsIndex /></Suspense>} />
+              <Route path="logs" element={<Suspense fallback={<PageLoader />}><LogsIndex /></Suspense>} />
+              <Route path="roles" element={<Suspense fallback={<PageLoader />}><RolesIndex /></Suspense>} />
+              <Route path="roles/:id" element={<Suspense fallback={<PageLoader />}><RoleDetailPage /></Suspense>} />
+              <Route path="financial-records" element={<Suspense fallback={<PageLoader />}><FinancialRecordsIndex /></Suspense>} />
+              <Route path="documents" element={<Suspense fallback={<PageLoader />}><DocumentsIndex /></Suspense>} />
+              <Route path="documents/:id" element={<Suspense fallback={<PageLoader />}><DocumentDetailPage /></Suspense>} />
+              <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
             </Route>
           </Routes>
         </AuthProvider>
-      </BrowserRouter>
+      </BrowserRouter> x
     </LogtoProvider>
   );
 }

@@ -1,3 +1,4 @@
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   CalendarDays,
@@ -129,8 +130,12 @@ function ActivityItem({ activity }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const { data, isLoading, error, refetch } = useDashboardSummary();
-  const visibleCards = buildCards(data ?? {}).filter((card) =>
-    hasPermission(user, card.permission)
+  const visibleCards = useMemo(
+    () =>
+      buildCards(data ?? {}).filter((card) =>
+        hasPermission(user, card.permission)
+      ),
+    [data, user]
   );
 
   return (

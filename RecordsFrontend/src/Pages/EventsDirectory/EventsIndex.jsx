@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "date-utils";
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
@@ -51,6 +51,95 @@ function TableSkeleton() {
     </TableBody>
   );
 }
+
+const EventRow = React.memo(function EventRow({ event, canManage, onView, onEdit, onDelete }) {
+  return (
+    <TableRow>
+      <TableCell className="px-4">
+        <div className="flex items-center gap-2.5">
+          {event.cover_url ? (
+            <img
+              src={event.cover_url}
+              alt=""
+              loading="lazy"
+              className="size-8 shrink-0 rounded-lg object-cover"
+            />
+          ) : (
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-csit-primary/10 text-csit-primary">
+              <CalendarDays className="size-4" />
+            </span>
+          )}
+          <span className="font-medium text-csit-text">{event.title}</span>
+        </div>
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {event.location ?? "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {formatDate(event.event_date)}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {event.start_time ?? "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {event.duration ? `${event.duration} min` : "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {formatMoney(event.entry_fee)}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {formatMoney(event.budget)}
+      </TableCell>
+      <TableCell>
+        <span
+          className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${
+            event.is_published
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {publishedLabel(event.is_published)}
+        </span>
+      </TableCell>
+      <TableCell className="px-4">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onView(event)}
+            aria-label={`View ${event.title}`}
+          >
+            <Eye className="text-csit-text-muted" />
+          </Button>
+          {canManage ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onEdit(event)}
+                aria-label={`Edit ${event.title}`}
+              >
+                <Pencil className="text-csit-text-muted" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onDelete(event)}
+                aria-label={`Delete ${event.title}`}
+                className="hover:bg-rose-50 hover:text-rose-600"
+              >
+                <Trash2 className="text-csit-text-muted" />
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export default function EventsIndex() {
   const { user } = useAuth();
@@ -222,92 +311,17 @@ export default function EventsIndex() {
               ) : (
                 <TableBody>
                   {events.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell className="px-4">
-                        <div className="flex items-center gap-2.5">
-                          {event.cover_url ? (
-                            <img
-                              src={event.cover_url}
-                              alt=""
-                              className="size-8 shrink-0 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-csit-primary/10 text-csit-primary">
-                              <CalendarDays className="size-4" />
-                            </span>
-                          )}
-                          <span className="font-medium text-csit-text">{event.title}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {event.location ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {formatDate(event.event_date)}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {event.start_time ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {event.duration ? `${event.duration} min` : "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {formatMoney(event.entry_fee)}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {formatMoney(event.budget)}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${
-                            event.is_published
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          {publishedLabel(event.is_published)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => navigate(`/app/events/${event.id}`)}
-                            aria-label={`View ${event.title}`}
-                          >
-                            <Eye className="text-csit-text-muted" />
-                          </Button>
-                          {canManage ? (
-                            <>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openEdit(event)}
-                                aria-label={`Edit ${event.title}`}
-                              >
-                                <Pencil className="text-csit-text-muted" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setDeleteError(null);
-                                  setDeleteTarget(event);
-                                }}
-                                aria-label={`Delete ${event.title}`}
-                                className="hover:bg-rose-50 hover:text-rose-600"
-                              >
-                                <Trash2 className="text-csit-text-muted" />
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      canManage={canManage}
+                      onView={(e) => navigate(`/app/events/${e.id}`)}
+                      onEdit={openEdit}
+                      onDelete={(e) => {
+                        setDeleteError(null);
+                        setDeleteTarget(e);
+                      }}
+                    />
                   ))}
                 </TableBody>
               )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "date-utils";
 import {
@@ -70,6 +70,96 @@ function TableSkeleton() {
     </TableBody>
   );
 }
+
+const DocumentRow = React.memo(function DocumentRow({ doc, canManage, onView, onEdit, onToggleArchive, onDelete }) {
+  const downloadUrl = doc.latest_version?.file_url ?? null;
+  return (
+    <TableRow>
+      <TableCell className="px-4">
+        <span className="font-medium text-csit-text">{doc.title}</span>
+      </TableCell>
+      <TableCell>
+        <CategoryBadge category={doc.category} />
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${statusBadgeStyles[doc.status] ?? "bg-slate-100 text-slate-600"}`}
+          >
+            {doc.status}
+          </span>
+          <span
+            className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${doc.is_public ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}
+          >
+            {doc.is_public ? "Public" : "Private"}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {doc.latest_version?.version_number ?? "—"}
+      </TableCell>
+      <TableCell className="text-csit-text-muted">
+        {formatDate(doc.updated_at)}
+      </TableCell>
+      <TableCell className="px-4">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onView(doc)}
+            aria-label={`View ${doc.title}`}
+          >
+            <Eye className="text-csit-text-muted" />
+          </Button>
+          {downloadUrl ? (
+            <a
+              href={downloadUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${doc.title}`}
+              className="inline-flex size-8 items-center justify-center rounded-md text-csit-text-muted transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Download />
+            </a>
+          ) : null}
+          {canManage ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onEdit(doc)}
+                aria-label={`Edit ${doc.title}`}
+              >
+                <Pencil className="text-csit-text-muted" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onToggleArchive(doc)}
+                aria-label={doc.status === "archived" ? `Restore ${doc.title}` : `Archive ${doc.title}`}
+              >
+                <Archive className="text-csit-text-muted" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onDelete(doc)}
+                aria-label={`Delete ${doc.title}`}
+                className="hover:bg-rose-50 hover:text-rose-600"
+              >
+                <Trash2 className="text-csit-text-muted" />
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export default function DocumentsIndex() {
   const { user } = useAuth();
@@ -268,93 +358,18 @@ export default function DocumentsIndex() {
               ) : (
                 <TableBody>
                   {documents.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <TableCell className="px-4">
-                        <span className="font-medium text-csit-text">{doc.title}</span>
-                      </TableCell>
-                      <TableCell>
-                        <CategoryBadge category={doc.category} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span
-                            className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${statusBadgeStyles[doc.status] ?? "bg-slate-100 text-slate-600"}`}
-                          >
-                            {doc.status}
-                          </span>
-                          <span
-                            className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${doc.is_public ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}
-                          >
-                            {doc.is_public ? "Public" : "Private"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {doc.latest_version?.version_number ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-csit-text-muted">
-                        {formatDate(doc.updated_at)}
-                      </TableCell>
-                      <TableCell className="px-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => navigate(`/app/documents/${doc.id}`)}
-                            aria-label={`View ${doc.title}`}
-                          >
-                            <Eye className="text-csit-text-muted" />
-                          </Button>
-                          {downloadUrl(doc) ? (
-                            <a
-                              href={downloadUrl(doc)}
-                              target="_blank"
-                              rel="noreferrer"
-                              aria-label={`Open ${doc.title}`}
-                              className="inline-flex size-8 items-center justify-center rounded-md text-csit-text-muted transition-colors hover:bg-accent hover:text-foreground"
-                            >
-                              <Download />
-                            </a>
-                          ) : null}
-                          {canManage ? (
-                            <>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setEditingDocument(doc);
-                                  setFormOpen(true);
-                                }}
-                                aria-label={`Edit ${doc.title}`}
-                              >
-                                <Pencil className="text-csit-text-muted" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleToggleArchive(doc)}
-                                aria-label={doc.status === "archived" ? `Restore ${doc.title}` : `Archive ${doc.title}`}
-                              >
-                                <Archive className="text-csit-text-muted" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setDeleteTarget(doc)}
-                                aria-label={`Delete ${doc.title}`}
-                                className="hover:bg-rose-50 hover:text-rose-600"
-                              >
-                                <Trash2 className="text-csit-text-muted" />
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <DocumentRow
+                      key={doc.id}
+                      doc={doc}
+                      canManage={canManage}
+                      onView={(d) => navigate(`/app/documents/${d.id}`)}
+                      onEdit={(d) => {
+                        setEditingDocument(d);
+                        setFormOpen(true);
+                      }}
+                      onToggleArchive={handleToggleArchive}
+                      onDelete={(d) => setDeleteTarget(d)}
+                    />
                   ))}
                 </TableBody>
               )}
