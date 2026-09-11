@@ -7,6 +7,7 @@ use App\Jobs\SendRegistrationCancelledJob;
 use App\Models\Attendance;
 use App\Models\Event;
 use App\Models\Payment;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -133,6 +134,103 @@ class EventService
         $user = auth('logto')->user();
 
         return $event->attendances()->where('user_id', $user->id)->exists();
+    }
+
+    public function ticket(Event $event): ?string
+    {
+        $user = auth('logto')->user();
+
+        $registered = $event->attendances()->where('user_id', $user->id)->exists();
+
+        return $registered ? $this->signCheckInToken($user->id, $event->id) : null;
+    }
+
+    public function verifyCheckInToken(Event $event, string $token): ?User
+    {
+        $parts = explode('.', $token);
+
+        if (count($parts) !== 3) {
+            return null;
+        }
+
+        [$userId, $eventId, $signature] = $parts;
+
+        if (! ctype_digit($userId) || ! ctype_digit($eventId) || (int) $eventId !== $event->id) {
+            return null;
+        }
+
+        if (! hash_equals($this->signCheckInToken((int) $userId, (int) $eventId), $token)) {
+            return null;
+        }
+
+        return User::find((int) $userId);
+    }
+
+    /**
+     * @return array{status: string, attendance: Attendance|null}
+     */
+    public function checkIn(Event $event, User $member, User $checker): array
+    {
+        if (! $this->isWithinCheckInWindow($event)) {
+            return ['status' => 'closed', 'attendance' => null];
+        }
+
+        $attendance = $event->attendances()->where('user_id', $member->id)->first();
+
+        if (! $attendance) {
+            return ['status' => 'not_registered', 'attendance' => null];
+        }
+
+        if ($attendance->checked_in_at) {
+            return ['status' => 'already_checked_in', 'attendance' => $attendance];
+        }
+
+        $attendance->forceFill([
+            'checked_in_at' => now(),
+            'checked_in_by' => $checker->id,
+        ])->save();
+
+        activity()
+            ->performedOn($event)
+            ->causedBy($checker)
+            ->withProperties(['user_id' => $member->id])
+            ->log('Event check-in');
+
+        return ['status' => 'checked_in', 'attendance' => $attendance->refresh()];
+    }
+
+    public function isWithinCheckInWindow(Event $event): bool
+    {
+        $open = $event->event_date->copy()->startOfDay();
+        $close = $event->event_date->copy()->endOfDay();
+
+        if ($event->start_time) {
+            $open = $event->event_date->copy()->setTimeFromTimeString($event->start_time->format('H:i'));
+        }
+
+        if ($event->duration) {
+            $close = $open->copy()->addMinutes($event->duration);
+        }
+
+        return now()->between($open, $close);
+    }
+
+    protected function signCheckInToken(int $userId, int $eventId): string
+    {
+        $payload = "{$userId}.{$eventId}";
+
+        return $payload.'.'.hash_hmac('sha256', $payload, $this->checkInSigningKey());
+    }
+
+    protected function checkInSigningKey(): string
+    {
+        $key = (string) config('app.key');
+
+        if (str_starts_with($key, 'base64:')) {
+            return (string) base64_decode(substr($key, 7));
+        }
+
+        return $key;
     }
 
     public function cancelRegistration(Event $event): bool

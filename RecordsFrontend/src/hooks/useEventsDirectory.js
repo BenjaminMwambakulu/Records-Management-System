@@ -142,6 +142,11 @@ export default function useEventsDirectory() {
     [refetch]
   );
 
+  const checkIn = useCallback(async (id, payload) => {
+    const response = await api.post(`/v1/events/${id}/check-in`, payload);
+    return response?.data ?? null;
+  }, []);
+
   const cancelRegistrations = useCallback(
     async (id, userIds, reason) => {
       const response = await api.delete(`/v1/events/${id}/attendances`, {
@@ -171,6 +176,7 @@ export default function useEventsDirectory() {
     createEvent,
     updateEvent,
     deleteEvent,
+    checkIn,
     cancelRegistrations,
     uploadCover,
     removeCover,

@@ -49,6 +49,7 @@ Route::prefix('v1')->middleware(['auth:logto', 'throttle:api'])->group(function 
     Route::post('events/{event}/register', [EventController::class, 'register']);
     Route::delete('events/{event}/register', [EventController::class, 'cancelRegistration']);
     Route::get('events/{event}/registration', [EventController::class, 'checkRegistration']);
+    Route::get('events/{event}/ticket', [EventController::class, 'ticket']);
 
     // Payments
     Route::post('payments', [PaymentController::class, 'store'])
@@ -119,6 +120,8 @@ Route::prefix('v1')->middleware(['auth:logto', 'throttle:api'])->group(function 
             ->middleware(['throttle:api-write', 'permission:events.update,logto']);
         Route::delete('events/{event}/attendances', [EventController::class, 'cancelRegistrations'])
             ->middleware(['throttle:api-write', 'role:superadmin,logto']);
+        Route::post('events/{event}/check-in', [EventController::class, 'checkIn'])
+            ->middleware('throttle:api-write');
 
         // Documents — write operations
         Route::post('documents', [DocumentController::class, 'store'])

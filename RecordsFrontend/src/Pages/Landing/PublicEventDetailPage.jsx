@@ -55,6 +55,7 @@ export default function PublicEventDetailPage() {
   const [error, setError] = useState(null);
 
   const [isRegistered, setIsRegistered] = useState(false);
+  const [ticketToken, setTicketToken] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [registrationError, setRegistrationError] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -96,6 +97,27 @@ export default function PublicEventDetailPage() {
       })
       .catch(() => {});
   }, [isAuthenticated, id]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !id || !isRegistered) {
+      setTicketToken(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    apiFetch(`/v1/events/${id}/ticket`)
+      .then((body) => {
+        if (!cancelled) setTicketToken(body?.data?.token ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setTicketToken(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, id, isRegistered]);
 
   useEffect(() => {
     return () => {
@@ -378,14 +400,19 @@ export default function PublicEventDetailPage() {
                   </div>
                   <p className="text-sm font-medium text-csit-text">You&apos;re registered for this event</p>
                   <p className="text-xs text-csit-text-muted">Show this QR code at the event to check in.</p>
-                  {event.qr_code_hash && (
+                  {ticketToken ? (
                     <div className="p-3 bg-white rounded-xl border border-csit-border/30 shadow-sm">
                       <QRCodeSVG
                         ref={qrRef}
-                        value={event.qr_code_hash}
+                        value={ticketToken}
                         size={160}
                         level="M"
                       />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-xs text-csit-text-muted py-2">
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Loading your ticket…
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-1">

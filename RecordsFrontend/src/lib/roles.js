@@ -37,6 +37,10 @@ export function isEventManager(user) {
   return hasAnyPermission(user, ["events.create", "events.update", "events.delete"]);
 }
 
+export function canCheckIn(user) {
+  return hasPermission(user, "events.checkin");
+}
+
 export function isFinancialManager(user) {
   return hasPermission(user, "financials.view");
 }

@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelRegistrationsRequest;
+use App\Http\Requests\CheckInRequest;
 use App\Http\Requests\StoreEventRequest;
 use App\Http\Requests\UpdateEventRequest;
 use App\Http\Requests\UploadEventCoverRequest;
 use App\Http\Resources\EventAttendanceResource;
 use App\Http\Resources\EventResource;
+use App\Http\Resources\MemberResource;
 use App\Http\Responses\APIResponse;
+use App\Models\User;
 use App\Services\EventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +25,7 @@ class EventController extends Controller
         protected EventService $eventService,
     ) {
         $this->middleware('permission:events.create|events.update|events.delete|events.checkin,logto')->except(
-            'index', 'show', 'attendances', 'register', 'checkRegistration', 'cancelRegistration', 'cancelRegistrations',
+            'index', 'show', 'attendances', 'register', 'checkRegistration', 'cancelRegistration', 'cancelRegistrations', 'ticket',
         );
     }
 
@@ -146,6 +149,80 @@ class EventController extends Controller
             ['registered' => $this->eventService->isRegistered($event)],
             'Registration status retrieved'
         );
+    }
+
+    public function ticket(int $id): JsonResponse
+    {
+        $event = $this->eventService->find($id);
+
+        if (! $event) {
+            return $this->error('Event not found', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $token = $this->eventService->ticket($event);
+
+        if (! $token) {
+            return $this->error('You are not registered for this event', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        return $this->success(
+            ['token' => $token],
+            'Check-in ticket generated'
+        );
+    }
+
+    public function checkIn(CheckInRequest $request, int $id): JsonResponse
+    {
+        $event = $this->eventService->find($id);
+
+        if (! $event) {
+            return $this->error('Event not found', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $token = $request->validated('token');
+        $userId = $request->validated('user_id');
+
+        $member = null;
+
+        if ($token) {
+            $member = $this->eventService->verifyCheckInToken($event, (string) $token);
+
+            if (! $member) {
+                return $this->error('Invalid check-in code.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        } elseif ($userId) {
+            $member = User::find((int) $userId);
+
+            if (! $member) {
+                return $this->error('Member not found', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        } else {
+            return $this->error('A check-in token or member id is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $result = $this->eventService->checkIn($event, $member, auth('logto')->user());
+
+        return match ($result['status']) {
+            'checked_in' => $this->success([
+                'status' => 'checked_in',
+                'member' => new MemberResource($member),
+                'checked_in_at' => $result['attendance']?->checked_in_at?->toIso8601String(),
+            ], 'Checked in successfully'),
+            'already_checked_in' => $this->success([
+                'status' => 'already_checked_in',
+                'member' => new MemberResource($member),
+                'checked_in_at' => $result['attendance']?->checked_in_at?->toIso8601String(),
+            ], 'Already checked in'),
+            'not_registered' => $this->error(
+                'This person is not registered for this event.',
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY
+            ),
+            default => $this->error(
+                'Check-in is closed for this event.',
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
+                ['status' => 'closed']
+            ),
+        };
     }
 
     public function cancelRegistration(int $id): JsonResponse

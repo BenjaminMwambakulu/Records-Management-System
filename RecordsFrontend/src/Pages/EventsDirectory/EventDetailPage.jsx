@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "date-utils";
-import { ArrowLeft, CalendarDays, Loader2, MapPin, UserMinus, Users } from "lucide-react";
+import jsQR from "jsqr";
+import { ArrowLeft, CalendarDays, CheckCircle, Loader2, MapPin, QrCode, Search, UserCheck, UserMinus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatMoney } from "@/lib/utils";
 import { useAuth } from "@/Context/AuthContext";
-import { isSuperAdmin } from "@/lib/roles";
+import { canCheckIn, isSuperAdmin } from "@/lib/roles";
 import { extractErrorMessage } from "@/lib/errors";
 import { notify } from "@/lib/toast";
 import useEventsDirectory from "@/hooks/useEventsDirectory";
@@ -177,12 +178,119 @@ function AttendeesTable({
   );
 }
 
+function ScannerDialog({ open, onClose, onDecoded }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [cameraError, setCameraError] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let stream = null;
+    let raf = null;
+
+    const stop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = null;
+      stream?.getTracks().forEach((track) => track.stop());
+      stream = null;
+    };
+
+    const scan = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState < 2) {
+        raf = requestAnimationFrame(scan);
+        return;
+      }
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (width > 0 && height > 0) {
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const code = jsQR(imageData.data, width, height, {
+          inversionAttempts: "dontInvert",
+        });
+        if (code?.data) {
+          stop();
+          onDecoded(code.data);
+          onClose();
+          return;
+        }
+      }
+      raf = requestAnimationFrame(scan);
+    };
+
+    const start = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+        setCameraError(null);
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play();
+          raf = requestAnimationFrame(scan);
+        }
+      } catch {
+        setCameraError("Could not access the camera. Allow camera access or use manual check-in instead.");
+      }
+    };
+
+    start();
+
+    return () => {
+      stop();
+    };
+  }, [open, onClose, onDecoded]);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Scan ticket QR</DialogTitle>
+          <DialogDescription>
+            Point the camera at the member&apos;s QR code to check them in.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-black">
+          <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+          <canvas ref={canvasRef} className="hidden" />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="size-48 rounded-xl border-2 border-white/80" />
+          </div>
+        </div>
+        {cameraError && (
+          <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-700">
+            {cameraError}
+          </div>
+        )}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function EventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { fetchEvent, fetchAttendances, cancelRegistrations } = useEventsDirectory();
+  const { fetchEvent, fetchAttendances, cancelRegistrations, checkIn } = useEventsDirectory();
 
   const [event, setEvent] = useState(null);
   const [isUpcoming, setIsUpcoming] = useState(true);
@@ -199,7 +307,12 @@ export default function EventDetailPage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState(null);
 
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  const [manualQuery, setManualQuery] = useState("");
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+
   const canCancel = isSuperAdmin(user);
+  const canCheckin = canCheckIn(user);
 
   const toggleSelection = useCallback((userId) => {
     setSelectedIds((prev) => {
@@ -285,6 +398,53 @@ export default function EventDetailPage() {
       .catch((err) => setAttendancesError(err))
       .finally(() => setAttendancesLoading(false));
   }, [id, fetchAttendances]);
+
+  const handleCheckIn = useCallback(
+    async (payload) => {
+      setIsCheckingIn(true);
+      try {
+        const data = await checkIn(event.id, payload);
+        await reloadAttendances();
+        setManualQuery("");
+        const memberName = data?.member?.full_name ?? "Member";
+        if (data?.status === "already_checked_in") {
+          notify.info("Already checked in", `${memberName} was already checked in.`);
+        } else {
+          notify.success("Checked in", `${memberName} has been checked in.`);
+        }
+      } catch (err) {
+        let message = extractErrorMessage(err);
+        if (err?.status === 403) {
+          message = "You don't have permission to check in members.";
+        }
+        notify.error("Check-in failed", message);
+      } finally {
+        setIsCheckingIn(false);
+      }
+    },
+    [event, checkIn, reloadAttendances]
+  );
+
+  const handleDecodedToken = useCallback(
+    (token) => {
+      handleCheckIn({ token });
+    },
+    [handleCheckIn]
+  );
+
+  const manualMatches = manualQuery.trim()
+    ? attendances
+        .filter((attendance) => attendance.user?.id)
+        .filter((attendance) => {
+          const member = attendance.user;
+          const query = manualQuery.trim().toLowerCase();
+          return (
+            member.full_name?.toLowerCase().includes(query) ||
+            member.student_id?.toLowerCase().includes(query)
+          );
+        })
+        .slice(0, 6)
+    : [];
 
   if (isLoading) {
     return (
@@ -396,6 +556,81 @@ export default function EventDetailPage() {
           </Card>
         </div>
 
+        {canCheckin ? (
+          <Card className="h-fit border-csit-border bg-white p-4">
+            <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-csit-text">
+              <UserCheck className="size-4 text-csit-primary" />
+              Check in
+            </h2>
+            <Button
+              type="button"
+              onClick={() => setScanDialogOpen(true)}
+              className="mb-3 w-full gap-1.5 bg-csit-primary text-white hover:bg-csit-primary-dark"
+            >
+              <QrCode className="size-4" />
+              Scan QR code
+            </Button>
+            <div className="relative mb-2">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-csit-text-muted" />
+              <input
+                type="text"
+                value={manualQuery}
+                onChange={(e) => setManualQuery(e.target.value)}
+                placeholder="Search by name or student ID"
+                className="w-full rounded-lg border border-csit-border py-2 pl-8 pr-3 text-sm focus:border-csit-primary focus:outline-none focus:ring-2 focus:ring-csit-primary/20"
+              />
+            </div>
+            {manualQuery.trim() && manualMatches.length === 0 ? (
+              <p className="py-1 text-xs text-csit-text-muted">
+                No registered members match your search.
+              </p>
+            ) : null}
+            {manualQuery.trim() && manualMatches.length > 0 ? (
+              <ul className="space-y-1.5">
+                {manualMatches.map((attendance) => {
+                  const member = attendance.user;
+                  const checkedIn = Boolean(attendance.checked_in_at);
+                  return (
+                    <li
+                      key={attendance.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-csit-border px-2.5 py-1.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-csit-text">
+                          {member.full_name}
+                        </p>
+                        <p className="truncate text-xs text-csit-text-muted">
+                          {member.student_id ?? "—"}
+                        </p>
+                      </div>
+                      {checkedIn ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                          <CheckCircle className="size-3" />
+                          Checked in
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleCheckIn({ user_id: member.id })}
+                          disabled={isCheckingIn}
+                          className="h-7 shrink-0 gap-1 bg-csit-primary px-2.5 text-xs text-white hover:bg-csit-primary-dark"
+                        >
+                          <UserCheck className="size-3" />
+                          Check in
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            <p className="mt-3 text-xs text-csit-text-muted">
+              Members can only be checked in during the event window.
+            </p>
+          </Card>
+        ) : null}
+
         <Card className="h-fit border-csit-border bg-white p-4 xl:sticky xl:top-6">
           <h2 className="mb-3 text-sm font-semibold text-csit-text">Event details</h2>
           <MetaRow label="Title" value={event.title} />
@@ -410,6 +645,12 @@ export default function EventDetailPage() {
           <MetaRow label="Last updated" value={formatDate(event.updated_at)} />
         </Card>
       </div>
+
+      <ScannerDialog
+        open={scanDialogOpen}
+        onClose={() => setScanDialogOpen(false)}
+        onDecoded={handleDecodedToken}
+      />
 
       <Dialog
         open={cancelDialogOpen}
