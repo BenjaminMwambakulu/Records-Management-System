@@ -44,9 +44,9 @@ function createExportRole(): Role
 }
 
 test('member cannot export financial records', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $this->withHeader('Authorization', 'Bearer '.financeExportToken($this->keys, 'logto-member'))
         ->getJson('/api/v1/financial-records/export')
@@ -55,7 +55,7 @@ test('member cannot export financial records', function () {
 
 test('executive can export financial records as CSV', function () {
     $executive = User::factory()->create(['logto_id' => 'logto-finance']);
-    $executive->assignRole(createExportRole());
+    $executive->syncRoles(createExportRole());
     $fees = FinancialCategory::factory()->create(['name' => 'Membership Fees']);
     FinancialRecord::factory()->create([
         'title' => 'Dues',

@@ -77,7 +77,7 @@ test('guests cannot view an unpublished event', function () {
 
 test('privileged users see published and unpublished events when listing', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventVisibilityAdminRole());
+    $admin->syncRoles(eventVisibilityAdminRole());
 
     $published = Event::factory()->create(['title' => 'Public Hackathon', 'is_published' => true]);
     $draft = Event::factory()->create(['title' => 'Draft Workshop', 'is_published' => false]);
@@ -94,7 +94,7 @@ test('privileged users see published and unpublished events when listing', funct
 
 test('year reps as board members can view unpublished events', function () {
     $yearRep = User::factory()->create(['logto_id' => 'logto-yearrep']);
-    $yearRep->assignRole(Role::findOrCreate('year_rep', 'logto'));
+    $yearRep->syncRoles(Role::findOrCreate('year_rep', 'logto'));
 
     $draft = Event::factory()->create(['title' => 'Draft Workshop', 'is_published' => false]);
 
@@ -112,7 +112,7 @@ test('year reps as board members can view unpublished events', function () {
 
 test('privileged users can view an unpublished event', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventVisibilityAdminRole());
+    $admin->syncRoles(eventVisibilityAdminRole());
 
     $draft = Event::factory()->create(['is_published' => false]);
 

@@ -40,9 +40,9 @@ test('activity logs require authentication', function () {
 });
 
 test('members cannot view activity logs', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $this->withHeader('Authorization', 'Bearer '.activityLogToken(JwtTestHelper::claims('logto-member'), $this->keys))
         ->getJson('/api/v1/activity-logs')
@@ -51,7 +51,7 @@ test('members cannot view activity logs', function () {
 
 test('admins can list activity logs newest first', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $older = Activity::create(['description' => 'created']);
     $newer = Activity::create(['description' => 'updated']);
@@ -69,7 +69,7 @@ test('admins can list activity logs newest first', function () {
 
 test('admins can filter logs by event', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     Activity::create(['description' => 'created a member', 'event' => 'created']);
     Activity::create(['description' => 'updated a member', 'event' => 'updated']);
@@ -83,7 +83,7 @@ test('admins can filter logs by event', function () {
 
 test('admins can search logs by description or actor name', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     Activity::create(['description' => 'created a document']);
     Activity::create(['description' => 'deleted an asset']);
@@ -97,7 +97,7 @@ test('admins can search logs by description or actor name', function () {
 
 test('admins can filter logs by subject type', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $event = Event::factory()->create();
 
@@ -126,7 +126,7 @@ test('activity log entries include causer, subject and property changes', functi
         'first_name' => 'Ada',
         'last_name' => 'Lovelace',
     ]);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $causer = User::factory()->create(['first_name' => 'Grace', 'last_name' => 'Hopper']);
     $event = Event::factory()->create(['title' => 'Hackathon']);

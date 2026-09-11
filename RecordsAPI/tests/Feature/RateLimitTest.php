@@ -35,7 +35,7 @@ function createRateLimitUser(): User
 {
     $user = User::factory()->create(['logto_id' => 'logto-rl-user']);
     $role = Role::create(['name' => 'executive', 'guard_name' => 'logto']);
-    $user->assignRole($role);
+    $user->syncRoles($role);
 
     return $user;
 }

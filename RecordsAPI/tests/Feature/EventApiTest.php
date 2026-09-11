@@ -51,15 +51,15 @@ function eventAdminRole(): Role
     ]);
 }
 
-test('event routes require authentication', function () {
-    $this->getJson('/api/v1/events')->assertStatus(401);
+test('event listings are public but writes require authentication', function () {
+    $this->getJson('/api/v1/events')->assertOk();
     $this->postJson('/api/v1/events', [])->assertStatus(401);
 });
 
 test('any authenticated member can list events', function () {
     User::factory()->create(['logto_id' => 'logto-eventviewer']);
-    $older = Event::factory()->create(['title' => 'Older Event']);
-    $newer = Event::factory()->create(['title' => 'Newer Event']);
+    $older = Event::factory()->create(['title' => 'Older Event', 'is_published' => true]);
+    $newer = Event::factory()->create(['title' => 'Newer Event', 'is_published' => true]);
 
     $older->forceFill(['created_at' => now()->subDay()])->save();
     $newer->forceFill(['created_at' => now()])->save();
@@ -93,9 +93,9 @@ test('any authenticated member can view an event', function () {
 });
 
 test('members cannot create, update, or delete events', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $event = Event::factory()->create();
 
@@ -116,7 +116,7 @@ test('members cannot create, update, or delete events', function () {
 
 test('admins can create an event', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.eventToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->postJson('/api/v1/events', [
@@ -141,7 +141,7 @@ test('admins can create an event', function () {
 
 test('creating an event auto-generates the slug', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.eventToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->postJson('/api/v1/events', [
@@ -158,7 +158,7 @@ test('creating an event auto-generates the slug', function () {
 
 test('creating an event auto-generates a qr code hash', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.eventToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->postJson('/api/v1/events', [
@@ -192,7 +192,7 @@ test('creating an event auto-generates a qr code hash', function () {
 
 test('creating an event requires a title and event date', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.eventToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->postJson('/api/v1/events', [])
@@ -202,7 +202,7 @@ test('creating an event requires a title and event date', function () {
 
 test('creating an event requires an entry fee and budget', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.eventToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->postJson('/api/v1/events', [
@@ -215,7 +215,7 @@ test('creating an event requires an entry fee and budget', function () {
 
 test('admins can set an entry fee and budget when creating an event', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.eventToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->postJson('/api/v1/events', [
@@ -237,7 +237,7 @@ test('admins can set an entry fee and budget when creating an event', function (
 
 test('admins can update an event entry fee and budget', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $event = Event::factory()->create(['title' => 'Fundraiser']);
 
@@ -255,7 +255,7 @@ test('admins can update an event entry fee and budget', function () {
 
 test('admins can update an event', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $event = Event::factory()->create(['title' => 'Old Title']);
 
@@ -273,7 +273,7 @@ test('admins can update an event', function () {
 
 test('admins can delete an event', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $event = Event::factory()->create();
 
@@ -287,7 +287,7 @@ test('admins can delete an event', function () {
 
 test('slug must be unique when explicitly provided', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     Event::factory()->create(['slug' => 'taken-slug']);
 
@@ -304,9 +304,9 @@ test('slug must be unique when explicitly provided', function () {
 });
 
 test('members cannot upload or remove an event cover', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $event = Event::factory()->create();
 
@@ -326,7 +326,7 @@ test('executive role can upload and remove an event cover', function () {
 
     $executive = User::factory()->create(['logto_id' => 'logto-executive']);
     Permission::create(['name' => 'events.update', 'guard_name' => 'logto']);
-    $executive->assignRole(
+    $executive->syncRoles(
         Role::create(['name' => 'executive', 'guard_name' => 'logto'])
             ->givePermissionTo('events.update')
     );
@@ -354,7 +354,7 @@ test('admins can upload an event cover', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $event = Event::factory()->create();
 
@@ -371,7 +371,7 @@ test('cover upload requires an image file', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $event = Event::factory()->create();
 
@@ -385,7 +385,7 @@ test('uploading a new cover replaces the previous one', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $event = Event::factory()->create();
     $event->addMedia(UploadedFile::fake()->image('old.jpg'))->toMediaCollection('cover');
@@ -401,7 +401,7 @@ test('admins can remove an event cover', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(eventAdminRole());
+    $admin->syncRoles(eventAdminRole());
 
     $event = Event::factory()->create();
     $event->addMedia(UploadedFile::fake()->image('cover.jpg'))->toMediaCollection('cover');

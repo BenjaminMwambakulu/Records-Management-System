@@ -59,7 +59,7 @@ function authHeaders(array $keys, string $logtoId = 'logto-admin'): array
 function createAdminUser(): User
 {
     $user = User::factory()->create(['logto_id' => 'logto-admin']);
-    $user->assignRole(Role::findOrCreate('admin', 'logto'));
+    $user->syncRoles(logtoAdminRole());
 
     return $user;
 }

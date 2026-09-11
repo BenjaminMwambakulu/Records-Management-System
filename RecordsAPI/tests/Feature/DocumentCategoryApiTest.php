@@ -37,7 +37,7 @@ function categoryToken(array $claims, array $keys): string
 function loggedInAdmin()
 {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     return $admin;
 }
@@ -47,23 +47,22 @@ test('document category routes require authentication', function () {
     $this->postJson('/api/v1/document-categories', [])->assertStatus(401);
 });
 
-test('any authenticated member can list document categories', function () {
-    User::factory()->create(['logto_id' => 'logto-viewer']);
+test('members cannot list document categories', function () {
+    logtoMemberRole();
+    $member = User::factory()->create(['logto_id' => 'logto-member']);
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
     DocumentCategory::factory()->create(['name' => 'Policies']);
     DocumentCategory::factory()->create(['name' => 'Minutes']);
 
-    $this->withHeader('Authorization', 'Bearer '.categoryToken(JwtTestHelper::claims('logto-viewer'), $this->keys))
+    $this->withHeader('Authorization', 'Bearer '.categoryToken(JwtTestHelper::claims('logto-member'), $this->keys))
         ->getJson('/api/v1/document-categories')
-        ->assertOk()
-        ->assertJsonCount(2, 'data')
-        ->assertJsonPath('data.0.name', 'Minutes')
-        ->assertJsonPath('data.1.name', 'Policies');
+        ->assertForbidden();
 });
 
 test('members cannot create, update, or delete document categories', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    logtoMemberRole();
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $category = DocumentCategory::factory()->create();
 
@@ -120,9 +119,9 @@ test('admins can update a document category', function () {
 });
 
 test('admins can delete a document category and documents fall back to no category', function () {
-    Role::create(['name' => 'admin', 'guard_name' => 'logto']);
+    logtoAdminRole();
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
+    $admin->syncRoles(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
 
     $document = Document::factory()->create(['category_id' => $category = DocumentCategory::factory()->create()->id]);
 

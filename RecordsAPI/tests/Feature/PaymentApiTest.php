@@ -35,11 +35,6 @@ beforeEach(function () {
     ]);
 });
 
-function paymentToken(array $claims, array $keys): string
-{
-    return JwtTestHelper::sign($claims, $keys['private_pem'], $keys['kid']);
-}
-
 test('payment routes require authentication', function () {
     $this->postJson('/api/v1/payments', [])->assertStatus(401);
     $this->getJson('/api/v1/my-payments')->assertStatus(401);

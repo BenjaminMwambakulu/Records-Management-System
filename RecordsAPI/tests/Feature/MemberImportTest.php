@@ -18,7 +18,7 @@ beforeEach(function () {
 });
 
 test('import job creates valid members and skips duplicates and invalid rows', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
 
     User::factory()->create(['email' => 'existing@must.ac.mw', 'student_id' => 'DUP-001']);
 
@@ -66,7 +66,7 @@ test('import job creates valid members and skips duplicates and invalid rows', f
 });
 
 test('import job processes excel files', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
 
     $spreadsheet = new Spreadsheet;
     $sheet = $spreadsheet->getActiveSheet();

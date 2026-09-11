@@ -38,19 +38,20 @@ function createCategoryExecutiveRole(): Role
 {
     $role = Role::create(['name' => 'executive', 'guard_name' => 'logto']);
 
-    foreach (['financials.update', 'financials.delete'] as $perm) {
+    foreach (['financials.view', 'financials.update', 'financials.delete'] as $perm) {
         $role->givePermissionTo(Permission::findOrCreate($perm, 'logto'));
     }
 
     return $role;
 }
 
-test('any authenticated member can list financial categories', function () {
-    User::factory()->create(['logto_id' => 'logto-viewer']);
+test('executive can list financial categories', function () {
+    $viewer = User::factory()->create(['logto_id' => 'logto-finance']);
+    $viewer->syncRoles(createCategoryExecutiveRole());
     FinancialCategory::factory()->create(['name' => 'B']);
     FinancialCategory::factory()->create(['name' => 'A']);
 
-    $this->withHeader('Authorization', 'Bearer '.financeCategoryToken($this->keys, 'logto-viewer'))
+    $this->withHeader('Authorization', 'Bearer '.financeCategoryToken($this->keys, 'logto-finance'))
         ->getJson('/api/v1/financial-categories')
         ->assertOk()
         ->assertJsonPath('data.0.name', 'A')
@@ -59,7 +60,7 @@ test('any authenticated member can list financial categories', function () {
 
 test('executive can create and update a financial category', function () {
     $executive = User::factory()->create(['logto_id' => 'logto-finance']);
-    $executive->assignRole(createCategoryExecutiveRole());
+    $executive->syncRoles(createCategoryExecutiveRole());
     $token = 'Bearer '.financeCategoryToken($this->keys);
 
     $this->withHeader('Authorization', $token)
@@ -77,7 +78,7 @@ test('executive can create and update a financial category', function () {
 
 test('executive can delete a financial category and records are nulled', function () {
     $executive = User::factory()->create(['logto_id' => 'logto-finance']);
-    $executive->assignRole(createCategoryExecutiveRole());
+    $executive->syncRoles(createCategoryExecutiveRole());
     $token = 'Bearer '.financeCategoryToken($this->keys);
 
     $category = FinancialCategory::factory()->create(['name' => 'Temp']);
@@ -90,9 +91,9 @@ test('executive can delete a financial category and records are nulled', functio
 });
 
 test('member cannot create financial categories', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $this->withHeader('Authorization', 'Bearer '.financeCategoryToken($this->keys, 'logto-member'))
         ->postJson('/api/v1/financial-categories', ['name' => 'Nope'])

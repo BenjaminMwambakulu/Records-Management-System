@@ -43,9 +43,9 @@ test('member imports require authentication', function () {
 });
 
 test('non-admins cannot upload an import file', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $file = UploadedFile::fake()->createWithContent('import.csv', "student_id,first_name,last_name,email\nA,B,C,d@e.com");
 
@@ -55,9 +55,9 @@ test('non-admins cannot upload an import file', function () {
 });
 
 test('admin can upload a csv and queue an import job', function () {
-    Role::create(['name' => 'admin', 'guard_name' => 'logto']);
+    logtoAdminRole();
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
+    $admin->syncRoles(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
 
     $csv = "student_id,first_name,last_name,email\nIMPORT-001,Import,User,import@must.ac.mw";
     $file = UploadedFile::fake()->createWithContent('import.csv', $csv);
@@ -78,9 +78,9 @@ test('admin can upload a csv and queue an import job', function () {
 });
 
 test('admin can download the import template', function () {
-    Role::create(['name' => 'admin', 'guard_name' => 'logto']);
+    logtoAdminRole();
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
+    $admin->syncRoles(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
 
     $this->withHeader('Authorization', 'Bearer '.importToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->get('/api/v1/members/imports/template')
@@ -93,9 +93,9 @@ test('admin can download the import template', function () {
 });
 
 test('admin can view the status of an import', function () {
-    Role::create(['name' => 'admin', 'guard_name' => 'logto']);
+    logtoAdminRole();
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
+    $admin->syncRoles(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
 
     $import = MemberImport::create([
         'original_name' => 'import.csv',

@@ -40,6 +40,7 @@ test('dashboard summary requires authentication', function () {
 
 test('dashboard summary returns record counts', function () {
     $dashboardUser = User::factory()->create(['logto_id' => 'logto-dashboard']);
+    $dashboardUser->syncRoles(logtoAdminRole());
     User::factory()->count(2)->create();
 
     Event::factory()->count(2)->create(['created_by' => $dashboardUser->id]);

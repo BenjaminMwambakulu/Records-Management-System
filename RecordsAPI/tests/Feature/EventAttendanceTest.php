@@ -34,7 +34,7 @@ function attendanceToken(array $claims, array $keys): string
 }
 
 test('event attendances require authentication', function () {
-    $event = Event::factory()->create();
+    $event = Event::factory()->create(['is_published' => true]);
 
     $this->getJson("/api/v1/events/{$event->id}/attendances")->assertStatus(401);
 });
@@ -42,7 +42,7 @@ test('event attendances require authentication', function () {
 test('any authenticated member can list event attendances', function () {
     User::factory()->create(['logto_id' => 'logto-attendanceviewer']);
 
-    $event = Event::factory()->create();
+    $event = Event::factory()->create(['is_published' => true]);
     $member = User::factory()->create(['first_name' => 'Alice', 'last_name' => 'Wonder', 'student_id' => 'BIT-001-00']);
 
     Attendance::create([
@@ -63,7 +63,7 @@ test('any authenticated member can list event attendances', function () {
 
 test('event with no checked-in members returns an empty list', function () {
     User::factory()->create(['logto_id' => 'logto-attendanceviewer']);
-    $event = Event::factory()->create();
+    $event = Event::factory()->create(['is_published' => true]);
 
     $this->withHeader('Authorization', 'Bearer '.attendanceToken(JwtTestHelper::claims('logto-attendanceviewer'), $this->keys))
         ->getJson("/api/v1/events/{$event->id}/attendances")
@@ -74,8 +74,8 @@ test('event with no checked-in members returns an empty list', function () {
 test('attendances are scoped to the requested event', function () {
     User::factory()->create(['logto_id' => 'logto-attendanceviewer']);
 
-    $event = Event::factory()->create();
-    $otherEvent = Event::factory()->create();
+    $event = Event::factory()->create(['is_published' => true]);
+    $otherEvent = Event::factory()->create(['is_published' => true]);
 
     Attendance::create([
         'event_id' => $otherEvent->id,
@@ -91,7 +91,7 @@ test('attendances are scoped to the requested event', function () {
 
 test('event attendances respect per_page pagination limit', function () {
     User::factory()->create(['logto_id' => 'logto-attendanceviewer']);
-    $event = Event::factory()->create();
+    $event = Event::factory()->create(['is_published' => true]);
 
     foreach (range(1, 5) as $i) {
         Attendance::create([

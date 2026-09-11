@@ -39,14 +39,14 @@ function documentToken(array $claims, array $keys): string
     return JwtTestHelper::sign($claims, $keys['private_pem'], $keys['kid']);
 }
 
-test('document routes require authentication', function () {
-    $this->getJson('/api/v1/documents')->assertStatus(401);
+test('document listings are public but writes require authentication', function () {
+    $this->getJson('/api/v1/documents')->assertOk();
     $this->postJson('/api/v1/documents', [])->assertStatus(401);
 });
 
 test('creating a document requires a title and file', function () {
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.documentToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->post('/api/v1/documents', [])
@@ -120,9 +120,9 @@ test('documents can be filtered by category', function () {
 });
 
 test('members cannot create documents or upload versions', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $document = Document::factory()->create();
     $token = 'Bearer '.documentToken(JwtTestHelper::claims('logto-member'), $this->keys);
@@ -140,7 +140,7 @@ test('admins can create a document with its first version', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $category = DocumentCategory::factory()->create();
 
@@ -171,7 +171,7 @@ test('admins can upload a newer version and it auto-increments', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $document = Document::factory()->create(['is_public' => true]);
     $document->versions()->create(['version_number' => '1', 'uploaded_by' => $admin->id])
@@ -221,7 +221,7 @@ test('admins can update a document', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $document = Document::factory()->create(['title' => 'Old Title']);
 
@@ -241,7 +241,7 @@ test('admins can delete a document and its versions', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $document = Document::factory()->create();
     $version = $document->versions()->create(['version_number' => '1', 'uploaded_by' => $admin->id]);
@@ -261,7 +261,7 @@ test('documents default to private and expose the public flag', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.documentToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->post('/api/v1/documents', [
@@ -276,7 +276,7 @@ test('is_public is honored when creating a document', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $this->withHeader('Authorization', 'Bearer '.documentToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->post('/api/v1/documents', [
@@ -293,9 +293,9 @@ test('is_public is honored when creating a document', function () {
 test('members only see public documents in the list', function () {
     Storage::fake('public');
 
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     Document::factory()->create(['title' => 'Public Doc', 'is_public' => true]);
     Document::factory()->create(['title' => 'Private Doc', 'is_public' => false]);
@@ -310,9 +310,9 @@ test('members only see public documents in the list', function () {
 test('members cannot view private documents', function () {
     Storage::fake('public');
 
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $private = Document::factory()->create(['title' => 'Private Doc', 'is_public' => false]);
     $private->versions()->create(['version_number' => '1', 'uploaded_by' => $member->id])
@@ -340,7 +340,7 @@ test('privileged roles can list and view private documents', function () {
 
     Role::create(['name' => 'executive', 'guard_name' => 'logto']);
     $executive = User::factory()->create(['logto_id' => 'logto-executive']);
-    $executive->assignRole(Role::where('name', 'executive')->where('guard_name', 'logto')->first());
+    $executive->syncRoles(Role::where('name', 'executive')->where('guard_name', 'logto')->first());
 
     $private = Document::factory()->create(['title' => 'Private Doc', 'is_public' => false]);
 
@@ -364,7 +364,7 @@ test('year reps as board members can list and view private documents', function 
     Role::findOrCreate('member', 'web');
     Role::create(['name' => 'year_rep', 'guard_name' => 'logto']);
     $yearRep = User::factory()->create(['logto_id' => 'logto-yearrep']);
-    $yearRep->assignRole(Role::where('name', 'year_rep')->where('guard_name', 'logto')->first());
+    $yearRep->syncRoles(Role::where('name', 'year_rep')->where('guard_name', 'logto')->first());
 
     $private = Document::factory()->create(['title' => 'Private Doc', 'is_public' => false]);
 
@@ -386,7 +386,7 @@ test('admins can toggle a document public flag', function () {
     Storage::fake('public');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $document = Document::factory()->create(['is_public' => false]);
 
@@ -412,7 +412,7 @@ test('private document files are stored privately and served via a signed url', 
     Storage::fake('local');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
 
     $response = $this->withHeader('Authorization', 'Bearer '.documentToken(JwtTestHelper::claims('logto-admin'), $this->keys))
         ->post('/api/v1/documents', [
@@ -447,7 +447,7 @@ test('toggling the public flag moves document files between disks', function () 
     Storage::fake('local');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::create(['name' => 'admin', 'guard_name' => 'logto']));
+    $admin->syncRoles(logtoAdminRole());
     $token = 'Bearer '.documentToken(JwtTestHelper::claims('logto-admin'), $this->keys);
 
     $document = Document::factory()->create(['title' => 'Vote Results', 'is_public' => false]);

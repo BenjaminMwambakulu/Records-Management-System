@@ -36,15 +36,15 @@ function rolesToken(array $claims, array $keys): string
 }
 
 test('admin can assign and remove member roles locally and push them to Logto', function () {
-    Role::create(['name' => 'admin', 'guard_name' => 'logto']);
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    logtoAdminRole();
+    Role::findOrCreate('member', 'logto');
     Role::create(['name' => 'event_officer', 'guard_name' => 'logto']);
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
+    $admin->syncRoles(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
 
     $target = User::factory()->create(['logto_id' => 'logto-member']);
-    $target->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $target->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     Http::fake([
         'https://logto.test/oidc/token' => Http::response(['access_token' => 'm2m-token'], 200),

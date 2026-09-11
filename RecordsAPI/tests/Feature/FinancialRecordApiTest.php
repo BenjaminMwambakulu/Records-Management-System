@@ -39,7 +39,7 @@ function createExecutiveRole(): Role
 {
     $role = Role::create(['name' => 'executive', 'guard_name' => 'logto']);
 
-    foreach (['financials.create', 'financials.update', 'financials.delete', 'financials.export'] as $perm) {
+    foreach (['financials.view', 'financials.create', 'financials.update', 'financials.delete', 'financials.export'] as $perm) {
         $role->givePermissionTo(Permission::findOrCreate($perm, 'logto'));
     }
 
@@ -52,8 +52,9 @@ test('financial routes require authentication', function () {
     $this->getJson('/api/v1/financial-categories')->assertStatus(401);
 });
 
-test('any authenticated member can list financial records', function () {
-    User::factory()->create(['logto_id' => 'logto-viewer']);
+test('executive can list financial records newest first', function () {
+    $viewer = User::factory()->create(['logto_id' => 'logto-finance']);
+    $viewer->syncRoles(createExecutiveRole());
 
     $income = FinancialRecord::factory()->create([
         'type' => 'income',
@@ -66,7 +67,7 @@ test('any authenticated member can list financial records', function () {
         'transaction_date' => '2026-09-01',
     ]);
 
-    $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys, 'logto-viewer'))
+    $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys, 'logto-finance'))
         ->getJson('/api/v1/financial-records')
         ->assertOk()
         ->assertJsonCount(2, 'data')
@@ -75,13 +76,14 @@ test('any authenticated member can list financial records', function () {
 });
 
 test('financial records can be filtered by type and category', function () {
-    User::factory()->create(['logto_id' => 'logto-viewer']);
+    $viewer = User::factory()->create(['logto_id' => 'logto-finance']);
+    $viewer->syncRoles(createExecutiveRole());
 
     $fees = FinancialCategory::factory()->create(['name' => 'Membership Fees']);
     FinancialRecord::factory()->create(['type' => 'income', 'category_id' => $fees->id, 'title' => 'Member Dues']);
     FinancialRecord::factory()->create(['type' => 'expense']);
 
-    $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys, 'logto-viewer'))
+    $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys, 'logto-finance'))
         ->getJson('/api/v1/financial-records?type=income&category_id='.$fees->id)
         ->assertOk()
         ->assertJsonCount(1, 'data')
@@ -90,7 +92,7 @@ test('financial records can be filtered by type and category', function () {
 
 test('creating a financial record requires title, type, amount, and date', function () {
     $executive = User::factory()->create(['logto_id' => 'logto-finance']);
-    $executive->assignRole(createExecutiveRole());
+    $executive->syncRoles(createExecutiveRole());
 
     $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys))
         ->postJson('/api/v1/financial-records', [])
@@ -100,7 +102,7 @@ test('creating a financial record requires title, type, amount, and date', funct
 
 test('executive can create a financial record and it records the author', function () {
     $executive = User::factory()->create(['logto_id' => 'logto-finance', 'first_name' => 'Patsy']);
-    $executive->assignRole(createExecutiveRole());
+    $executive->syncRoles(createExecutiveRole());
     $fees = FinancialCategory::factory()->create(['name' => 'Membership Fees']);
 
     $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys))
@@ -121,9 +123,9 @@ test('executive can create a financial record and it records the author', functi
 });
 
 test('member cannot create financial records', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys, 'logto-member'))
         ->postJson('/api/v1/financial-records', [
@@ -137,7 +139,7 @@ test('member cannot create financial records', function () {
 
 test('executive can update and delete a financial record', function () {
     $executive = User::factory()->create(['logto_id' => 'logto-finance']);
-    $executive->assignRole(createExecutiveRole());
+    $executive->syncRoles(createExecutiveRole());
     $token = 'Bearer '.financeToken($this->keys);
 
     $record = FinancialRecord::factory()->create(['title' => 'Old Title']);
@@ -160,13 +162,14 @@ test('executive can update and delete a financial record', function () {
 });
 
 test('summary returns income, expense, and balance', function () {
-    User::factory()->create(['logto_id' => 'logto-viewer']);
+    $viewer = User::factory()->create(['logto_id' => 'logto-finance']);
+    $viewer->syncRoles(createExecutiveRole());
 
     FinancialRecord::factory()->create(['type' => 'income', 'amount' => '1000.00']);
     FinancialRecord::factory()->create(['type' => 'income', 'amount' => '500.00']);
     FinancialRecord::factory()->create(['type' => 'expense', 'amount' => '300.00']);
 
-    $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys, 'logto-viewer'))
+    $this->withHeader('Authorization', 'Bearer '.financeToken($this->keys, 'logto-finance'))
         ->getJson('/api/v1/financial-records/summary')
         ->assertOk()
         ->assertJsonPath('data.total_income', '1500.00')

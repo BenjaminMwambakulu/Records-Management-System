@@ -41,9 +41,9 @@ function memberSyncToken(array $claims, array $keys): string
 }
 
 test('creating a member does not require logto_id and dispatches a sync job', function () {
-    Role::create(['name' => 'admin', 'guard_name' => 'logto']);
+    logtoAdminRole();
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
+    $admin->syncRoles(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
 
     Queue::fake();
 
@@ -76,9 +76,9 @@ test('creating a member does not require logto_id and dispatches a sync job', fu
 });
 
 test('new members are assigned the member role by default', function () {
-    Role::create(['name' => 'admin', 'guard_name' => 'logto']);
+    logtoAdminRole();
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
+    $admin->syncRoles(Role::where('name', 'admin')->where('guard_name', 'logto')->first());
 
     Queue::fake();
 
@@ -101,9 +101,9 @@ test('new members are assigned the member role by default', function () {
 });
 
 test('non-admins cannot create members', function () {
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole(Role::where('name', 'member')->where('guard_name', 'logto')->first());
+    $member->syncRoles(Role::where('name', 'member')->where('guard_name', 'logto')->first());
 
     $this->withHeader('Authorization', 'Bearer '.memberSyncToken(JwtTestHelper::claims('logto-member'), $this->keys))
         ->postJson('/api/v1/members', [

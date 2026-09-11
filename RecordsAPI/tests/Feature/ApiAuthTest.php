@@ -83,7 +83,7 @@ test('GET /api/v1/me uses the username as the name when the name is garbage', fu
         ->and($user->student_id)->toBeNull()
         ->and($user->first_name)->toBe('Vamp2o5')
         ->and($user->last_name)->toBeNull()
-        ->and($user->getRoleNames()->all())->toBe([]);
+        ->and($user->getRoleNames()->all())->toBe(['member']);
 });
 
 test('GET /api/v1/me auto-provisions when the token lacks profile claims', function () {
@@ -219,11 +219,11 @@ test('member routes require authentication', function () {
 });
 
 test('only admins can create members', function () {
-    $adminRole = Role::create(['name' => 'admin', 'guard_name' => 'logto']);
-    $memberRole = Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    $adminRole = logtoAdminRole();
+    $memberRole = Role::findOrCreate('member', 'logto');
 
     $admin = User::factory()->create(['logto_id' => 'logto-admin']);
-    $admin->assignRole($adminRole);
+    $admin->syncRoles($adminRole);
 
     Queue::fake();
 
@@ -240,7 +240,7 @@ test('only admins can create members', function () {
     Queue::assertPushed(SyncMemberToLogto::class);
 
     $member = User::factory()->create(['logto_id' => 'logto-member']);
-    $member->assignRole($memberRole);
+    $member->syncRoles($memberRole);
 
     $this->withHeader('Authorization', 'Bearer '.logtoToken(JwtTestHelper::claims('logto-member'), $this->keys))
         ->postJson('/api/v1/members', [

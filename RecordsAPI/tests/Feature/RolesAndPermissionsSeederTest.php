@@ -110,11 +110,24 @@ test('superadmin role gets every permission except year-rep student management',
         ->toEqualCanonicalizing($expected);
 });
 
+test('admin role gets the same permission set as superadmin', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
+
+    $admin = Role::where('name', 'admin')->where('guard_name', 'logto')->first();
+    $superadmin = Role::where('name', 'superadmin')->where('guard_name', 'logto')->first();
+
+    expect($admin)->not->toBeNull();
+
+    expect($admin->permissions->pluck('name')->values()->all())
+        ->toEqualCanonicalizing($superadmin->permissions->pluck('name')->values()->all())
+        ->not->toContain('members.year_rep.manage');
+});
+
 test('seeder is idempotent when run twice', function () {
     $this->seed(RolesAndPermissionsSeeder::class);
     $this->seed(RolesAndPermissionsSeeder::class);
 
-    expect(Role::count())->toBe(5);
+    expect(Role::count())->toBe(6);
     expect(Permission::count())->toBe(30);
     expect(Role::where('name', 'superadmin')->first()->permissions)->toHaveCount(29);
 });

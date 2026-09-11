@@ -39,7 +39,7 @@ function dashboardAccessToken(array $claims, array $keys): string
 function dashboardRoleUser(string $logtoId, string $roleName): User
 {
     return User::withoutEvents(fn (): User => User::factory()->create(['logto_id' => $logtoId]))
-        ->assignRole(Role::findOrCreate($roleName, 'logto'));
+        ->syncRoles(Role::findOrCreate($roleName, 'logto'));
 }
 
 function dashboardGetSummary(string $logtoId, array $keys): array

@@ -4,6 +4,7 @@ use App\Models\Document;
 use App\Models\DocumentCategory;
 use App\Models\Event;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -31,10 +32,10 @@ beforeEach(function () {
         ]),
     ]);
 
-    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
 
     $this->yearRep = User::withoutEvents(fn (): User => User::factory()->create(['logto_id' => 'logto-yearrep-write']))
-        ->assignRole(Role::findOrCreate('year_rep', 'logto'));
+        ->syncRoles(Role::findOrCreate('year_rep', 'logto'));
 });
 
 function yearRepWriteToken(array $claims, array $keys): string

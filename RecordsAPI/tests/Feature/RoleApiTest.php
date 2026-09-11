@@ -35,8 +35,8 @@ function roleAdminToken(array $keys, string $logtoId = 'logto-admin'): string
 function createRoleAdminUser(): User
 {
     $user = User::factory()->create(['logto_id' => 'logto-admin']);
-    $role = Role::create(['name' => 'admin', 'guard_name' => 'logto']);
-    $user->assignRole($role);
+    $role = logtoAdminRole();
+    $user->syncRoles($role);
 
     return $user;
 }
@@ -44,8 +44,8 @@ function createRoleAdminUser(): User
 function createRoleSuperadminUser(): User
 {
     $user = User::factory()->create(['logto_id' => 'logto-superadmin']);
-    $role = Role::create(['name' => 'superadmin', 'guard_name' => 'logto']);
-    $user->assignRole($role);
+    $role = logtoSuperadminRole();
+    $user->syncRoles($role);
 
     return $user;
 }
@@ -53,7 +53,7 @@ function createRoleSuperadminUser(): User
 test('admin can list all roles', function () {
     createRoleAdminUser();
     Role::create(['name' => 'executive', 'guard_name' => 'logto']);
-    Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    Role::findOrCreate('member', 'logto');
 
     $this->withHeader('Authorization', 'Bearer '.roleAdminToken($this->keys))
         ->getJson('/api/v1/roles')
@@ -63,8 +63,8 @@ test('admin can list all roles', function () {
 
 test('non-admin cannot list roles', function () {
     $user = User::factory()->create(['logto_id' => 'logto-member']);
-    $role = Role::create(['name' => 'member', 'guard_name' => 'logto']);
-    $user->assignRole($role);
+    $role = Role::findOrCreate('member', 'logto');
+    $user->syncRoles($role);
 
     $this->withHeader('Authorization', 'Bearer '.roleAdminToken($this->keys, 'logto-member'))
         ->getJson('/api/v1/roles')
@@ -94,7 +94,7 @@ test('admin cannot create duplicate role', function () {
 test('admin can get role detail', function () {
     createRoleAdminUser();
     $role = Role::create(['name' => 'executive', 'guard_name' => 'logto']);
-    $perm = Permission::create(['name' => 'events.view', 'guard_name' => 'logto']);
+    $perm = Permission::findOrCreate('events.view', 'logto');
     $role->givePermissionTo($perm);
 
     $this->withHeader('Authorization', 'Bearer '.roleAdminToken($this->keys))
@@ -129,7 +129,7 @@ test('admin can delete a non-superadmin role', function () {
 
 test('admin cannot delete superadmin role', function () {
     createRoleAdminUser();
-    $role = Role::create(['name' => 'superadmin', 'guard_name' => 'logto']);
+    $role = logtoSuperadminRole();
 
     $this->withHeader('Authorization', 'Bearer '.roleAdminToken($this->keys))
         ->deleteJson('/api/v1/roles/'.$role->id)
@@ -138,9 +138,9 @@ test('admin cannot delete superadmin role', function () {
 
 test('admin can get permissions grouped by module', function () {
     createRoleAdminUser();
-    Permission::create(['name' => 'members.view', 'guard_name' => 'logto']);
-    Permission::create(['name' => 'members.create', 'guard_name' => 'logto']);
-    Permission::create(['name' => 'events.view', 'guard_name' => 'logto']);
+    Permission::findOrCreate('members.view', 'logto');
+    Permission::findOrCreate('members.create', 'logto');
+    Permission::findOrCreate('events.view', 'logto');
 
     $this->withHeader('Authorization', 'Bearer '.roleAdminToken($this->keys))
         ->getJson('/api/v1/permissions')
@@ -153,9 +153,9 @@ test('admin can get permissions grouped by module', function () {
 test('admin can sync permissions for a role', function () {
     createRoleAdminUser();
     $role = Role::create(['name' => 'executive', 'guard_name' => 'logto']);
-    Permission::create(['name' => 'events.view', 'guard_name' => 'logto']);
-    Permission::create(['name' => 'events.create', 'guard_name' => 'logto']);
-    Permission::create(['name' => 'members.view', 'guard_name' => 'logto']);
+    Permission::findOrCreate('events.view', 'logto');
+    Permission::findOrCreate('events.create', 'logto');
+    Permission::findOrCreate('members.view', 'logto');
 
     $this->withHeader('Authorization', 'Bearer '.roleAdminToken($this->keys))
         ->putJson('/api/v1/roles/'.$role->id.'/permissions', [
@@ -183,7 +183,7 @@ test('admin can remove role from user', function () {
     createRoleAdminUser();
     $role = Role::create(['name' => 'executive', 'guard_name' => 'logto']);
     $target = User::factory()->create(['logto_id' => 'logto-target']);
-    $target->assignRole($role);
+    $target->syncRoles($role);
 
     $this->withHeader('Authorization', 'Bearer '.roleAdminToken($this->keys))
         ->deleteJson('/api/v1/roles/'.$role->id.'/users/'.$target->id)

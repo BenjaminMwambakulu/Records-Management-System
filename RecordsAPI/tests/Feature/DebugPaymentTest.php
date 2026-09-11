@@ -32,11 +32,6 @@ beforeEach(function () {
     ]);
 });
 
-function paymentToken(array $claims, array $keys): string
-{
-    return JwtTestHelper::sign($claims, $keys['private_pem'], $keys['kid']);
-}
-
 test('debug initiate payment shows response body', function () {
     $user = User::factory()->create(['logto_id' => 'logto-payment-user']);
     $event = Event::factory()->create(['entry_fee' => 5000]);

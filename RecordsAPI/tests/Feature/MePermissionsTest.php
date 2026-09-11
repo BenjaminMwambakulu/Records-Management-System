@@ -36,7 +36,7 @@ it('returns the authenticated user permissions', function () {
     Permission::findOrCreate('members.view', 'logto');
     Permission::findOrCreate('events.view', 'logto');
     $role->syncPermissions(['members.view', 'events.view']);
-    $user->assignRole($role);
+    $user->syncRoles($role);
 
     $this->withHeader('Authorization', "Bearer {$token}")
         ->getJson('/api/v1/me/permissions')
@@ -50,10 +50,10 @@ it('returns assigned permissions for member role', function () {
     $token = JwtTestHelper::sign(JwtTestHelper::claims('logto-member-perms'), $this->keys['private_pem'], $this->keys['kid']);
 
     $user = User::factory()->create(['logto_id' => 'logto-member-perms']);
-    $role = Role::create(['name' => 'member', 'guard_name' => 'logto']);
+    $role = Role::findOrCreate('member', 'logto');
     Permission::findOrCreate('members.view', 'logto');
     $role->syncPermissions(['members.view']);
-    $user->assignRole($role);
+    $user->syncRoles($role);
 
     $this->withHeader('Authorization', "Bearer {$token}")
         ->getJson('/api/v1/me/permissions')

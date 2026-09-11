@@ -1,6 +1,9 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Tests\Support\JwtTestHelper;
 use Tests\TestCase;
 
 /*
@@ -44,7 +47,69 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+function paymentToken(array $claims, array $keys): string
 {
-    // ..
+    return JwtTestHelper::sign($claims, $keys['private_pem'], $keys['kid']);
+}
+
+function logtoAdminPermissionNames(): array
+{
+    return [
+        'members.view',
+        'members.create',
+        'members.update',
+        'members.delete',
+        'members.export',
+        'events.view',
+        'events.create',
+        'events.update',
+        'events.delete',
+        'events.checkin',
+        'financials.view',
+        'financials.create',
+        'financials.update',
+        'financials.delete',
+        'financials.export',
+        'assets.view',
+        'assets.create',
+        'assets.update',
+        'assets.delete',
+        'assets.checkout',
+        'assets.return',
+        'documents.view',
+        'documents.create',
+        'documents.update',
+        'documents.delete',
+        'documents.versions.create',
+        'dashboard.view',
+        'roles.manage',
+        'activity_logs.view',
+    ];
+}
+
+function logtoAdminRole(): Role
+{
+    foreach (logtoAdminPermissionNames() as $name) {
+        Permission::findOrCreate($name, 'logto');
+    }
+
+    return Role::findOrCreate('admin', 'logto')->syncPermissions(logtoAdminPermissionNames());
+}
+
+function logtoSuperadminRole(): Role
+{
+    foreach (logtoAdminPermissionNames() as $name) {
+        Permission::findOrCreate($name, 'logto');
+    }
+
+    return Role::findOrCreate('superadmin', 'logto')->syncPermissions(logtoAdminPermissionNames());
+}
+
+function logtoMemberRole(): Role
+{
+    foreach (['members.view', 'events.view', 'documents.view'] as $name) {
+        Permission::findOrCreate($name, 'logto');
+    }
+
+    return Role::findOrCreate('member', 'logto')->syncPermissions(['members.view', 'events.view', 'documents.view']);
 }
