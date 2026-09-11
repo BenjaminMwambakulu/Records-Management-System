@@ -4,14 +4,20 @@ namespace App\Services;
 
 use App\Models\FinancialCategory;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class FinancialCategoryService
 {
     public function list(): Collection
     {
-        return FinancialCategory::query()
-            ->orderBy('name')
-            ->get();
+        $rows = Cache::remember('financial-categories:v2', 300, function (): array {
+            return FinancialCategory::query()
+                ->orderBy('name')
+                ->get()
+                ->toArray();
+        });
+
+        return FinancialCategory::hydrate($rows);
     }
 
     public function find(int $id): ?FinancialCategory
@@ -24,7 +30,10 @@ class FinancialCategoryService
      */
     public function create(array $data): FinancialCategory
     {
-        return FinancialCategory::create($data);
+        $category = FinancialCategory::create($data);
+        Cache::forget('financial-categories:v2');
+
+        return $category;
     }
 
     /**
@@ -33,6 +42,7 @@ class FinancialCategoryService
     public function update(FinancialCategory $category, array $data): FinancialCategory
     {
         $category->update($data);
+        Cache::forget('financial-categories:v2');
 
         return $category;
     }
@@ -40,5 +50,6 @@ class FinancialCategoryService
     public function delete(FinancialCategory $category): void
     {
         $category->delete();
+        Cache::forget('financial-categories:v2');
     }
 }

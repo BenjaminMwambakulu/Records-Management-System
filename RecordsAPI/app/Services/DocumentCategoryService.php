@@ -4,14 +4,20 @@ namespace App\Services;
 
 use App\Models\DocumentCategory;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class DocumentCategoryService
 {
     public function list(): Collection
     {
-        return DocumentCategory::query()
-            ->orderBy('name')
-            ->get();
+        $rows = Cache::remember('document-categories:v2', 300, function (): array {
+            return DocumentCategory::query()
+                ->orderBy('name')
+                ->get()
+                ->toArray();
+        });
+
+        return DocumentCategory::hydrate($rows);
     }
 
     public function find(int $id): ?DocumentCategory
@@ -24,7 +30,10 @@ class DocumentCategoryService
      */
     public function create(array $data): DocumentCategory
     {
-        return DocumentCategory::create($data);
+        $category = DocumentCategory::create($data);
+        Cache::forget('document-categories:v2');
+
+        return $category;
     }
 
     /**
@@ -33,6 +42,7 @@ class DocumentCategoryService
     public function update(DocumentCategory $category, array $data): DocumentCategory
     {
         $category->update($data);
+        Cache::forget('document-categories:v2');
 
         return $category;
     }
@@ -40,5 +50,6 @@ class DocumentCategoryService
     public function delete(DocumentCategory $category): void
     {
         $category->delete();
+        Cache::forget('document-categories:v2');
     }
 }
