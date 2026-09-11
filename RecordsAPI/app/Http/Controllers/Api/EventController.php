@@ -120,7 +120,7 @@ class EventController extends Controller
             return $this->error('Event not found', JsonResponse::HTTP_NOT_FOUND);
         }
 
-        if ($event->event_date->isPast()) {
+        if ($event->event_date->copy()->endOfDay()->isPast()) {
             return $this->error('Registration is closed — this event has already passed.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -133,8 +133,12 @@ class EventController extends Controller
         }
 
         $this->eventService->register($event);
+        $token = $this->eventService->ticket($event);
 
-        return $this->success(null, 'Registered successfully');
+        return $this->success([
+            'registered' => true,
+            'token' => $token,
+        ], 'Registered successfully');
     }
 
     public function checkRegistration(int $id): JsonResponse
@@ -145,8 +149,14 @@ class EventController extends Controller
             return $this->error('Event not found', JsonResponse::HTTP_NOT_FOUND);
         }
 
+        $isRegistered = $this->eventService->isRegistered($event);
+        $token = $isRegistered ? $this->eventService->ticket($event) : null;
+
         return $this->success(
-            ['registered' => $this->eventService->isRegistered($event)],
+            [
+                'registered' => $isRegistered,
+                'token' => $token,
+            ],
             'Registration status retrieved'
         );
     }
@@ -215,7 +225,26 @@ class EventController extends Controller
             ], 'Already checked in'),
             'not_registered' => $this->error(
                 'This person is not registered for this event.',
-                JsonResponse::HTTP_UNPROCESSABLE_ENTITY
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
+                ['status' => 'not_registered']
+            ),
+            'not_started' => $this->error(
+                $result['message'] ?? 'Check-in has not opened yet. This event is in the future.',
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
+                [
+                    'status' => 'not_started',
+                    'reason' => 'future_event',
+                    'opens_at' => isset($result['opens_at']) ? $result['opens_at']->toIso8601String() : null,
+                ]
+            ),
+            'ended' => $this->error(
+                $result['message'] ?? 'Check-in is closed because this event has ended.',
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
+                [
+                    'status' => 'ended',
+                    'reason' => 'event_ended',
+                    'closed_at' => isset($result['closed_at']) ? $result['closed_at']->toIso8601String() : null,
+                ]
             ),
             default => $this->error(
                 'Check-in is closed for this event.',
@@ -246,7 +275,7 @@ class EventController extends Controller
             return $this->error('Event not found', JsonResponse::HTTP_NOT_FOUND);
         }
 
-        if ($event->event_date->isPast()) {
+        if ($event->event_date->copy()->endOfDay()->isPast()) {
             return $this->error('Cancellation is closed — this event has already passed.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 

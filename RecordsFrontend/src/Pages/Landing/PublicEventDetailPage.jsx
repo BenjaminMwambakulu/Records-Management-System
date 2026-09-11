@@ -43,6 +43,28 @@ function downloadQRCode(svgElement, filename) {
   img.src = "data:image/svg+xml;base64," + btoa(svgData);
 }
 
+function isEventPassed(event) {
+  if (!event?.event_date) return false;
+  const dateStr = typeof event.event_date === "string" ? event.event_date.split("T")[0] : "";
+  if (!dateStr) return false;
+
+  if (event.start_time) {
+    const [hours, minutes] = event.start_time.split(":");
+    const eventTime = new Date(`${dateStr}T${hours || "00"}:${minutes || "00"}:00`);
+    if (!isNaN(eventTime.getTime())) {
+      if (event.duration) {
+        eventTime.setMinutes(eventTime.getMinutes() + Number(event.duration));
+      } else {
+        eventTime.setHours(23, 59, 59, 999);
+      }
+      return eventTime.getTime() < Date.now();
+    }
+  }
+
+  const endOfDay = new Date(`${dateStr}T23:59:59.999`);
+  return !isNaN(endOfDay.getTime()) ? endOfDay.getTime() < Date.now() : false;
+}
+
 export default function PublicEventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -88,36 +110,77 @@ export default function PublicEventDetailPage() {
     load();
   }, [load]);
 
+  const fetchTicket = useCallback(
+    async (maxRetries = 4, delayMs = 800) => {
+      if (!id || !isAuthenticated) return null;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const body = await apiFetch(`/v1/events/${id}/ticket`);
+          const token = body?.data?.token ?? null;
+          if (token) {
+            setTicketToken(token);
+            return token;
+          }
+        } catch {
+          if (attempt < maxRetries) {
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
+        }
+      }
+      return null;
+    },
+    [id, isAuthenticated]
+  );
+
   useEffect(() => {
     if (!isAuthenticated || !id) return;
 
     apiFetch(`/v1/events/${id}/registration`)
       .then((body) => {
-        setIsRegistered(body?.data?.registered ?? false);
+        const registered = body?.data?.registered ?? false;
+        setIsRegistered(registered);
+        if (registered && body?.data?.token) {
+          setTicketToken(body.data.token);
+        }
       })
       .catch(() => {});
   }, [isAuthenticated, id]);
 
   useEffect(() => {
     if (!isAuthenticated || !id || !isRegistered) {
-      setTicketToken(null);
+      if (!isRegistered) {
+        setTicketToken(null);
+      }
       return;
     }
 
+    if (ticketToken) return;
+
     let cancelled = false;
 
-    apiFetch(`/v1/events/${id}/ticket`)
-      .then((body) => {
-        if (!cancelled) setTicketToken(body?.data?.token ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setTicketToken(null);
-      });
+    const loadTicket = async () => {
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        if (cancelled) return;
+        try {
+          const body = await apiFetch(`/v1/events/${id}/ticket`);
+          if (!cancelled && body?.data?.token) {
+            setTicketToken(body.data.token);
+            return;
+          }
+        } catch {
+          if (attempt < 4 && !cancelled) {
+            await new Promise((r) => setTimeout(r, 800));
+          }
+        }
+      }
+    };
+
+    loadTicket();
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, id, isRegistered]);
+  }, [isAuthenticated, id, isRegistered, ticketToken]);
 
   useEffect(() => {
     return () => {
@@ -153,6 +216,7 @@ export default function PublicEventDetailPage() {
             setShowPaymentDialog(false);
             resetPaymentForm();
             notify.success("Payment successful", "You are now registered for this event.");
+            fetchTicket(5, 600);
           } else if (payment?.status === "failed") {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
@@ -164,15 +228,22 @@ export default function PublicEventDetailPage() {
         }
       }, 3000);
     },
-    [resetPaymentForm]
+    [resetPaymentForm, fetchTicket]
   );
 
   const handleRegister = async () => {
     setIsRegistering(true);
     setRegistrationError(null);
     try {
-      await apiFetch(`/v1/events/${id}/register`, { method: "POST" });
+      const response = await apiFetch(`/v1/events/${id}/register`, { method: "POST" });
+      const token = response?.data?.token;
+      if (token) {
+        setTicketToken(token);
+      }
       setIsRegistered(true);
+      if (!token) {
+        fetchTicket(4, 600);
+      }
       notify.success("You're registered", "Show your QR code at the event to check in.");
     } catch (err) {
       const message = extractErrorMessage(err);
@@ -188,6 +259,7 @@ export default function PublicEventDetailPage() {
     try {
       await apiFetch(`/v1/events/${id}/register`, { method: "DELETE" });
       setIsRegistered(false);
+      setTicketToken(null);
       setShowCancelConfirm(false);
       notify.success("Registration cancelled", "You can register again whenever you'd like.");
     } catch (err) {
@@ -384,7 +456,7 @@ export default function PublicEventDetailPage() {
                 </p>
               </div>
             )}
-            {new Date(event.event_date) <= new Date() ? (
+            {isEventPassed(event) ? (
               <div className="flex flex-col items-center gap-2">
                 <div className="flex size-10 items-center justify-center rounded-full bg-slate-100">
                   <Clock className="size-5 text-slate-500" />

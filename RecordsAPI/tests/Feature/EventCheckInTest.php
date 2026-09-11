@@ -252,3 +252,67 @@ test('a newly registered attendee is not considered checked in until check-in', 
         ->postJson("/api/v1/events/{$event->id}/check-in", ['user_id' => $member->id])
         ->assertJsonPath('data.status', 'checked_in');
 });
+
+test('check-in before the event start returns not_started status with clear schedule message', function () {
+    checkInRoleUser('logto-superadmin', 'superadmin');
+    $eventDate = now()->addDays(2)->startOfDay();
+    $event = checkInEvent([
+        'event_date' => $eventDate,
+        'start_time' => '14:00',
+    ]);
+    $member = checkInRoleUser('logto-future', 'member');
+    checkInRegister($event, $member);
+
+    $response = $this->withHeader('Authorization', checkInAuthHeader($this, 'logto-superadmin'))
+        ->postJson("/api/v1/events/{$event->id}/check-in", ['user_id' => $member->id])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.status', 'not_started')
+        ->assertJsonPath('errors.reason', 'future_event');
+
+    $message = $response->json('message');
+    expect($message)->toContain('Check-in has not opened yet')
+        ->and($message)->toContain($eventDate->format('M j, Y'));
+});
+
+test('check-in after the event ends returns ended status with clear message', function () {
+    checkInRoleUser('logto-superadmin', 'superadmin');
+    $event = checkInEvent(['event_date' => now()->subDays(2)->startOfDay()]);
+    $member = checkInRoleUser('logto-past', 'member');
+    checkInRegister($event, $member);
+
+    $this->withHeader('Authorization', checkInAuthHeader($this, 'logto-superadmin'))
+        ->postJson("/api/v1/events/{$event->id}/check-in", ['user_id' => $member->id])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.status', 'ended')
+        ->assertJsonPath('errors.reason', 'event_ended')
+        ->assertJsonPath('message', 'Check-in is closed because this event has already ended.');
+});
+
+test('event registration immediately returns the check-in ticket token', function () {
+    $event = checkInEvent(['entry_fee' => 0]);
+    checkInRoleUser('logto-reg-user', 'member');
+
+    $response = $this->withHeader('Authorization', checkInAuthHeader($this, 'logto-reg-user'))
+        ->postJson("/api/v1/events/{$event->id}/register")
+        ->assertOk()
+        ->assertJsonPath('data.registered', true);
+
+    $token = $response->json('data.token');
+    expect($token)->toBeString()
+        ->and(substr_count($token, '.'))->toBe(2);
+});
+
+test('check registration status includes the ticket token when registered', function () {
+    $event = checkInEvent();
+    $member = checkInRoleUser('logto-status-user', 'member');
+    checkInRegister($event, $member);
+
+    $response = $this->withHeader('Authorization', checkInAuthHeader($this, 'logto-status-user'))
+        ->getJson("/api/v1/events/{$event->id}/registration")
+        ->assertOk()
+        ->assertJsonPath('data.registered', true);
+
+    $token = $response->json('data.token');
+    expect($token)->toBeString()
+        ->and(substr_count($token, '.'))->toBe(2);
+});

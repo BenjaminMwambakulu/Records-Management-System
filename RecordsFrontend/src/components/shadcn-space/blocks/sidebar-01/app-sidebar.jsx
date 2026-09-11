@@ -79,13 +79,17 @@ export function AppSidebar() {
         <SidebarHeader className="px-4 pt-5">
           <SidebarMenu>
             <SidebarMenuItem>
-              <a href="#" className="w-full h-full flex items-center px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+              <Link
+                to="/"
+                className="w-full h-full flex items-center px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                aria-label="Go to public site"
+              >
                 <img
                   src={getImagePath("csit-logo.png")}
                   alt="CSIT Society Logo"
                   className="h-10 w-auto object-contain group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:object-cover group-data-[collapsible=icon]:object-center"
                 />
-              </a>
+              </Link>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>

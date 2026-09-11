@@ -167,12 +167,58 @@ class EventService
     }
 
     /**
-     * @return array{status: string, attendance: Attendance|null}
+     * @return array{open: \Illuminate\Support\Carbon, close: \Illuminate\Support\Carbon}
+     */
+    public function getCheckInWindow(Event $event): array
+    {
+        $open = $event->event_date->copy()->startOfDay();
+        $close = $event->event_date->copy()->endOfDay();
+
+        if ($event->start_time) {
+            $open = $event->event_date->copy()->setTimeFromTimeString($event->start_time->format('H:i'));
+        }
+
+        if ($event->duration) {
+            $close = $open->copy()->addMinutes($event->duration);
+        }
+
+        return ['open' => $open, 'close' => $close];
+    }
+
+    public function isWithinCheckInWindow(Event $event): bool
+    {
+        $window = $this->getCheckInWindow($event);
+
+        return now()->between($window['open'], $window['close']);
+    }
+
+    /**
+     * @return array{status: string, attendance: Attendance|null, message?: string, opens_at?: \Illuminate\Support\Carbon, closed_at?: \Illuminate\Support\Carbon}
      */
     public function checkIn(Event $event, User $member, User $checker): array
     {
-        if (! $this->isWithinCheckInWindow($event)) {
-            return ['status' => 'closed', 'attendance' => null];
+        $window = $this->getCheckInWindow($event);
+        $now = now();
+
+        if ($now->lt($window['open'])) {
+            $dateFormatted = $event->event_date->format('M j, Y');
+            $timeFormatted = $event->start_time ? ' at '.$event->start_time->format('g:i A') : '';
+
+            return [
+                'status' => 'not_started',
+                'attendance' => null,
+                'opens_at' => $window['open'],
+                'message' => "Check-in has not opened yet. This event is scheduled for {$dateFormatted}{$timeFormatted}.",
+            ];
+        }
+
+        if ($now->gt($window['close'])) {
+            return [
+                'status' => 'ended',
+                'attendance' => null,
+                'closed_at' => $window['close'],
+                'message' => 'Check-in is closed because this event has already ended.',
+            ];
         }
 
         $attendance = $event->attendances()->where('user_id', $member->id)->first();
@@ -197,22 +243,6 @@ class EventService
             ->log('Event check-in');
 
         return ['status' => 'checked_in', 'attendance' => $attendance->refresh()];
-    }
-
-    public function isWithinCheckInWindow(Event $event): bool
-    {
-        $open = $event->event_date->copy()->startOfDay();
-        $close = $event->event_date->copy()->endOfDay();
-
-        if ($event->start_time) {
-            $open = $event->event_date->copy()->setTimeFromTimeString($event->start_time->format('H:i'));
-        }
-
-        if ($event->duration) {
-            $close = $open->copy()->addMinutes($event->duration);
-        }
-
-        return now()->between($open, $close);
     }
 
     protected function signCheckInToken(int $userId, int $eventId): string

@@ -22,6 +22,22 @@ function formatDate(value) {
   return new Date(value).toFormat("DD MMM YYYY");
 }
 
+function isEventUpcoming(event) {
+  if (!event?.event_date) return false;
+  const dateStr = typeof event.event_date === "string" ? event.event_date.split("T")[0] : "";
+  if (!dateStr) return false;
+
+  if (event.start_time) {
+    const [hours, minutes] = event.start_time.split(":");
+    const startTime = new Date(`${dateStr}T${hours || "00"}:${minutes || "00"}:00`);
+    if (!isNaN(startTime.getTime())) {
+      return startTime.getTime() > Date.now();
+    }
+  }
+  const startOfDay = new Date(`${dateStr}T00:00:00`);
+  return !isNaN(startOfDay.getTime()) ? startOfDay.getTime() > Date.now() : false;
+}
+
 function initialsOf(name) {
   return name
     .split(/\s+/)
@@ -368,9 +384,7 @@ export default function EventDetailPage() {
       .then(([eventResult, attendeesResult]) => {
         if (eventResult.status === "fulfilled") {
           setEvent(eventResult.value);
-          setIsUpcoming(
-            new Date(eventResult.value.event_date).getTime() > Date.now()
-          );
+          setIsUpcoming(isEventUpcoming(eventResult.value));
         } else {
           setError(eventResult.reason);
         }
@@ -414,10 +428,33 @@ export default function EventDetailPage() {
         }
       } catch (err) {
         let message = extractErrorMessage(err);
+        let title = "Check-in failed";
+
         if (err?.status === 403) {
           message = "You don't have permission to check in members.";
+        } else if (
+          err?.body?.errors?.status === "not_started" ||
+          err?.body?.errors?.reason === "future_event"
+        ) {
+          title = "Check-in not open";
+          message =
+            err?.body?.message ||
+            err?.body?.errors?.message ||
+            "Check-in has not opened yet. This event is scheduled in the future.";
+        } else if (
+          err?.body?.errors?.status === "ended" ||
+          err?.body?.errors?.reason === "event_ended"
+        ) {
+          title = "Event has ended";
+          message =
+            err?.body?.message ||
+            err?.body?.errors?.message ||
+            "Check-in is closed because this event has ended.";
+        } else if (err?.body?.message) {
+          message = err.body.message;
         }
-        notify.error("Check-in failed", message);
+
+        notify.error(title, message);
       } finally {
         setIsCheckingIn(false);
       }
@@ -562,6 +599,14 @@ export default function EventDetailPage() {
               <UserCheck className="size-4 text-csit-primary" />
               Check in
             </h2>
+            {isUpcoming ? (
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                <p className="font-semibold">Event is upcoming</p>
+                <p className="mt-0.5 text-amber-700">
+                  Check-in will open when the event starts ({formatDate(event.event_date)}{event.start_time ? ` at ${event.start_time}` : ""}).
+                </p>
+              </div>
+            ) : null}
             <Button
               type="button"
               onClick={() => setScanDialogOpen(true)}

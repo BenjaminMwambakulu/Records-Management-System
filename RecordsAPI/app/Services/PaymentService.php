@@ -100,7 +100,7 @@ class PaymentService
 
         try {
             \App\Jobs\CreateFinancialRecordFromPayment::dispatch($payment);
-            \App\Jobs\RegisterEventAttendanceFromPayment::dispatch($payment);
+            \App\Jobs\RegisterEventAttendanceFromPayment::dispatchSync($payment);
             \App\Jobs\PaymentCompletedJob::dispatch($payment);
         } catch (\Exception $e) {
             \Log::error('Payment side-effect dispatch failed', [

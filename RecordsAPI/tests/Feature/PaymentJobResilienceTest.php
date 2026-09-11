@@ -61,3 +61,15 @@ test('a payment never produces duplicate financial records', function () {
 
     expect(FinancialRecord::count())->toBe(1);
 });
+
+test('a completed payment registers attendance without auto-checking in', function () {
+    $payment = resilientPayment();
+
+    (new RegisterEventAttendanceFromPayment($payment))->handle();
+
+    $attendance = $payment->payable->attendances()
+        ->firstWhere('user_id', $payment->user_id);
+
+    expect($attendance)->not->toBeNull();
+    expect($attendance->checked_in_at)->toBeNull();
+});
