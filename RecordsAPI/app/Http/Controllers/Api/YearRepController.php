@@ -53,7 +53,7 @@ class YearRepController extends Controller
             });
         }
 
-        $members = $query->latest()->paginate($request->input('per_page', 15));
+        $members = $query->with('roles')->latest()->paginate($request->input('per_page', 15));
 
         return $this->success(
             MemberResource::collection($members),

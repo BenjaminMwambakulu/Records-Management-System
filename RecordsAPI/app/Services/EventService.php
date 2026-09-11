@@ -141,14 +141,8 @@ class EventService
     protected function generateUniqueSlug(string $title): string
     {
         $base = Str::slug($title);
-        $slug = $base;
-        $suffix = 2;
+        $suffix = Event::where('slug', 'like', $base.'%')->count() + 1;
 
-        while (Event::where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$suffix;
-            $suffix++;
-        }
-
-        return $slug;
+        return $suffix > 1 ? $base.'-'.$suffix : $base;
     }
 }

@@ -24,6 +24,7 @@ class MemberService
     {
         return $this->users
             ->newQuery()
+            ->with('roles')
             ->when($filters['search'] ?? null, function (Builder $query, string $search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('first_name', 'ilike', "%{$search}%")

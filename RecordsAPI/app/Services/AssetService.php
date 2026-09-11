@@ -6,6 +6,7 @@ use App\Enums\AssetStatus;
 use App\Models\Asset;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Cache;
 
 class AssetService
 {
@@ -51,13 +52,17 @@ class AssetService
 
     public function create(array $data): Asset
     {
-        return Asset::create([
+        $asset = Asset::create([
             'name' => $data['name'],
             'serial_number' => $data['serial_number'] ?? null,
             'category' => $data['category'],
             'status' => AssetStatus::AVAILABLE,
             'notes' => $data['notes'] ?? null,
         ]);
+
+        Cache::forget('asset-categories:all');
+
+        return $asset;
     }
 
     public function update(Asset $asset, array $data): Asset
@@ -88,9 +93,11 @@ class AssetService
 
     public function getCategories(): array
     {
-        return Asset::distinct()
-            ->whereNotNull('category')
-            ->pluck('category')
-            ->toArray();
+        return Cache::remember('asset-categories:all', 300, function (): array {
+            return Asset::distinct()
+                ->whereNotNull('category')
+                ->pluck('category')
+                ->toArray();
+        });
     }
 }

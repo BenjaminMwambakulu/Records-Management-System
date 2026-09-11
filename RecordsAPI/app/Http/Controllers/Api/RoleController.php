@@ -12,6 +12,7 @@ use App\Http\Resources\RoleResource;
 use App\Http\Responses\APIResponse;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -88,8 +89,13 @@ class RoleController extends Controller
 
     public function permissions(): JsonResponse
     {
-        $permissions = Permission::where('guard_name', 'logto')->get();
-        $grouped = $permissions->groupBy(fn ($p) => explode('.', $p->name)[0])->map(fn ($group) => $group->pluck('name')->values()->all());
+        $grouped = Cache::remember('permissions:all', 600, function (): array {
+            $permissions = Permission::where('guard_name', 'logto')->get();
+
+            return $permissions->groupBy(fn ($p) => explode('.', $p->name)[0])
+                ->map(fn ($group) => $group->pluck('name')->values()->all())
+                ->toArray();
+        });
 
         return $this->success($grouped, 'Permissions retrieved successfully');
     }
@@ -102,6 +108,7 @@ class RoleController extends Controller
         $permissionNames = $request->validated('permissions');
         $permissions = Permission::whereIn('name', $permissionNames)->where('guard_name', 'logto')->get();
         $role->syncPermissions($permissions);
+        Cache::forget('permissions:all');
 
         return $this->success(new RoleResource($role->fresh()->load('permissions', 'users')), 'Permissions updated successfully');
     }

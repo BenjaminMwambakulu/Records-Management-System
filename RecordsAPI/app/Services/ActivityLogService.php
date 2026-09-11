@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Spatie\Activitylog\Models\Activity;
+use Illuminate\Support\Facades\DB;
 
 class ActivityLogService
 {
@@ -13,17 +14,20 @@ class ActivityLogService
      */
     public function list(array $filters = []): LengthAwarePaginator
     {
+        $driver = DB::connection()->getDriverName();
+        $operator = $driver === 'pgsql' ? 'ilike' : 'like';
+
         return Activity::query()
             ->with(['causer', 'subject'])
-            ->when($filters['search'] ?? null, function (Builder $query, string $search): void {
-                $pattern = '%'.mb_strtolower($search).'%';
-                $query->where(function (Builder $query) use ($pattern): void {
-                    $query->whereRaw('LOWER(description) LIKE ?', [$pattern])
-                        ->orWhere(function (Builder $query) use ($pattern): void {
+            ->when($filters['search'] ?? null, function (Builder $query, string $search) use ($operator): void {
+                $pattern = '%'.$search.'%';
+                $query->where(function (Builder $query) use ($pattern, $operator): void {
+                    $query->where('description', $operator, $pattern)
+                        ->orWhere(function (Builder $query) use ($pattern, $operator): void {
                             $query->whereNotNull('causer_type')
-                                ->whereHas('causer', function (Builder $query) use ($pattern): void {
-                                    $query->whereRaw('LOWER(first_name) LIKE ?', [$pattern])
-                                        ->orWhereRaw('LOWER(last_name) LIKE ?', [$pattern]);
+                                ->whereHas('causer', function (Builder $query) use ($pattern, $operator): void {
+                                    $query->where('first_name', $operator, $pattern)
+                                        ->orWhere('last_name', $operator, $pattern);
                                 });
                         });
                 });
