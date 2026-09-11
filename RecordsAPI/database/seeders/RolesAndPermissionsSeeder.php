@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -145,6 +144,9 @@ class RolesAndPermissionsSeeder extends Seeder
         $superadmin->syncPermissions(collect($allPermissions)->reject(
             fn (string $name): bool => $name === 'members.year_rep.manage'
         )->all());
+
+        $admin = Role::findOrCreate('admin', self::GUARD);
+        $admin->syncPermissions($superadmin->permissions->pluck('name')->all());
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
