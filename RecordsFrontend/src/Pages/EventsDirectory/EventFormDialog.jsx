@@ -228,7 +228,7 @@ export default function EventFormDialog({
                   updateField("location", event.target.value);
                   onFieldChange?.("location");
                 }}
-                placeholder="e.g. Lecture Hall 3"
+                placeholder="e.g. A4"
               />
               {fieldErrors?.location?.length > 0 && (
                 <span id="location-error" className="text-xs text-destructive" role="alert">
