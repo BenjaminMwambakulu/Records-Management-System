@@ -50,31 +50,43 @@ class SyncMemberToLogto implements ShouldQueue
 
         $name = trim("{$this->member->first_name} {$this->member->last_name}");
 
-        $created = $logtoService->createUser([
-            'primaryEmail' => $this->member->email,
-            'name' => $name,
-            'username' => $this->member->student_id,
-        ]);
+        try {
+            $data = [
+                'primaryEmail' => $this->member->email,
+                'name' => $name,
+            ];
 
-        $logtoUserId = $created['id'] ?? null;
+            if (($username = $logtoService->normalizeUsername((string) $this->member->student_id)) !== null) {
+                $data['username'] = $username;
+            }
 
-        if (! is_string($logtoUserId) || $logtoUserId === '') {
-            throw new RuntimeException('Logto createUser response did not include an id.');
-        }
+            $created = $logtoService->createUser($data);
 
-        $this->member->update(['logto_id' => $logtoUserId]);
+            $logtoUserId = $created['id'] ?? null;
 
-        $logtoService->updatePassword($logtoUserId, $temporaryPassword);
+            if (! is_string($logtoUserId) || $logtoUserId === '') {
+                throw new RuntimeException('Logto createUser response did not include an id.');
+            }
 
-        if ($this->roles !== []) {
-            $logtoService->assignRoles($logtoUserId, $this->roles);
+            $this->member->update(['logto_id' => $logtoUserId]);
+
+            $logtoService->updatePassword($logtoUserId, $temporaryPassword);
+
+            if ($this->roles !== []) {
+                $logtoService->assignRoles($logtoUserId, $this->roles);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Member created locally but Logto sync failed; welcome email was still sent', [
+                'user_id' => $this->member->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         Mail::to($this->member->email)->send(new MemberWelcomeMail($this->member, $temporaryPassword));
 
-        Log::info('Member created and synced to Logto', [
+        Log::info('Member created and welcome email dispatched', [
             'user_id' => $this->member->id,
-            'logto_id' => $logtoUserId,
+            'logto_id' => $this->member->logto_id,
             'roles' => $this->roles,
         ]);
     }

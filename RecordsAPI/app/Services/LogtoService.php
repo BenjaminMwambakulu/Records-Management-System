@@ -166,16 +166,45 @@ class LogtoService
             throw new RuntimeException("Cannot sync user {$user->id} to Logto: no logto_id.");
         }
 
+        $data = [
+            'primaryEmail' => $user->email,
+            'name' => trim("{$user->first_name} {$user->last_name}"),
+        ];
+
+        if (($username = $this->normalizeUsername((string) $user->student_id)) !== null) {
+            $data['username'] = $username;
+        }
+
         return $this->callManagementApi(
             'put',
             "/api/users/{$user->logto_id}",
-            [
-                'primaryEmail' => $user->email,
-                'name' => trim("{$user->first_name} {$user->last_name}"),
-                'username' => $user->student_id,
-            ],
+            $data,
             "Failed to sync user {$user->id} to Logto"
         );
+    }
+
+    /**
+     * Derive a Logto-safe username from a student id.
+     *
+     * Logto usernames must match [A-Za-z_][A-Za-z0-9_]* (letters, digits and
+     * underscores; must start with a letter or underscore). Student ids often
+     * contain hyphens, dots or spaces, so invalid characters are stripped. A
+     * "u" prefix is added when the result would start with a digit. Returns
+     * null when nothing usable remains so callers can omit the username.
+     */
+    public function normalizeUsername(string $studentId): ?string
+    {
+        $username = preg_replace('/[^A-Za-z0-9_]/', '', $studentId) ?? '';
+
+        if ($username === '') {
+            return null;
+        }
+
+        if (preg_match('/^[0-9]/', $username) === 1) {
+            $username = 'u'.$username;
+        }
+
+        return $username;
     }
 
     public function getUser(string $logtoUserId): array
@@ -251,7 +280,7 @@ class LogtoService
     {
         $token = $this->getAccessToken();
 
-        $url = rtrim($this->endpoint, '/') . $path;
+        $url = rtrim($this->endpoint, '/').$path;
 
         $response = Http::acceptJson()
             ->timeout(30)

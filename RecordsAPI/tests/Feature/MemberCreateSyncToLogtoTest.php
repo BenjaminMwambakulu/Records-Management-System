@@ -157,6 +157,137 @@ test('the sync job creates the user in Logto, stores the id, assigns roles, and 
     });
 });
 
+test('the sync job sends a Logto-safe username when the student id contains hyphens', function () {
+    $member = User::factory()->create([
+        'email' => 'alice.smith@must.ac.mw',
+        'first_name' => 'Alice',
+        'last_name' => 'Smith',
+        'student_id' => 'BIT-023-22',
+        'logto_id' => null,
+    ]);
+
+    Http::fake([
+        'https://logto.test/oidc/token' => Http::response(['access_token' => 'm2m-token'], 200),
+        'https://logto.test/api/users' => Http::response(['id' => 'logto-new-id'], 200),
+        'https://logto.test/api/users/*' => Http::response([], 200),
+        'https://logto.test/api/roles*' => Http::response(['items' => [], 'totalCount' => 0], 200),
+    ]);
+
+    Mail::fake();
+
+    (new SyncMemberToLogto($member, ['member']))->handle(app(LogtoService::class));
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://logto.test/api/users'
+            && $request->method() === 'POST'
+            && data_get($request->data(), 'username') === 'BIT02322';
+    });
+});
+
+test('the sync job omits the username when the student id yields no Logto-safe characters', function () {
+    $member = User::factory()->create([
+        'email' => 'alice.smith@must.ac.mw',
+        'first_name' => 'Alice',
+        'last_name' => 'Smith',
+        'student_id' => '---',
+        'logto_id' => null,
+    ]);
+
+    Http::fake([
+        'https://logto.test/oidc/token' => Http::response(['access_token' => 'm2m-token'], 200),
+        'https://logto.test/api/users' => Http::response(['id' => 'logto-new-id'], 200),
+        'https://logto.test/api/users/*' => Http::response([], 200),
+        'https://logto.test/api/roles*' => Http::response(['items' => [], 'totalCount' => 0], 200),
+    ]);
+
+    Mail::fake();
+
+    (new SyncMemberToLogto($member, ['member']))->handle(app(LogtoService::class));
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://logto.test/api/users'
+            && $request->method() === 'POST'
+            && ! array_key_exists('username', $request->data());
+    });
+});
+
+test('the sync job prefixes a leading digit so the normalized username is Logto-safe', function () {
+    $member = User::factory()->create([
+        'email' => 'bob.jones@must.ac.mw',
+        'first_name' => 'Bob',
+        'last_name' => 'Jones',
+        'student_id' => '123-CSE',
+        'logto_id' => null,
+    ]);
+
+    Http::fake([
+        'https://logto.test/oidc/token' => Http::response(['access_token' => 'm2m-token'], 200),
+        'https://logto.test/api/users' => Http::response(['id' => 'logto-new-id'], 200),
+        'https://logto.test/api/users/*' => Http::response([], 200),
+        'https://logto.test/api/roles*' => Http::response(['items' => [], 'totalCount' => 0], 200),
+    ]);
+
+    Mail::fake();
+
+    (new SyncMemberToLogto($member, ['member']))->handle(app(LogtoService::class));
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://logto.test/api/users'
+            && $request->method() === 'POST'
+            && data_get($request->data(), 'username') === 'u123CSE';
+    });
+});
+
+test('profile resync sends a Logto-safe username for existing members', function () {
+    $member = User::factory()->create([
+        'first_name' => 'Axel',
+        'last_name' => 'Wolff',
+        'student_id' => 'STU-1503',
+        'logto_id' => 'existing-logto-id',
+    ]);
+
+    Http::fake([
+        'https://logto.test/oidc/token' => Http::response(['access_token' => 'm2m-token'], 200),
+        'https://logto.test/api/users/existing-logto-id' => Http::response(['id' => 'existing-logto-id'], 200),
+    ]);
+
+    Mail::fake();
+
+    (new SyncMemberToLogto($member, []))->handle(app(LogtoService::class));
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://logto.test/api/users/existing-logto-id'
+            && $request->method() === 'PUT'
+            && data_get($request->data(), 'username') === 'STU1503';
+    });
+});
+
+test('the sync job still emails the temporary password when Logto user creation fails', function () {
+    $member = User::factory()->create([
+        'email' => 'carol.danvers@must.ac.mw',
+        'first_name' => 'Carol',
+        'last_name' => 'Danvers',
+        'student_id' => 'BIT-005-22',
+        'logto_id' => null,
+    ]);
+
+    Http::fake([
+        'https://logto.test/oidc/token' => Http::response(['access_token' => 'm2m-token'], 200),
+        'https://logto.test/api/users' => Http::response(['message' => 'unavailable'], 503),
+    ]);
+
+    Mail::fake();
+
+    (new SyncMemberToLogto($member, ['member']))->handle(app(LogtoService::class));
+
+    expect($member->refresh()->logto_id)->toBeNull();
+
+    Mail::assertSent(MemberWelcomeMail::class, function (MemberWelcomeMail $mail) use ($member) {
+        return $mail->hasTo($member->email)
+            && strlen($mail->temporaryPassword) >= 14;
+    });
+});
+
 test('the sync job is a no-op for members that already have a Logto ID', function () {
     $member = User::factory()->create([
         'email' => 'alice.smith@must.ac.mw',
